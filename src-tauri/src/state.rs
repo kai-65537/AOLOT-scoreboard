@@ -1,0 +1,327 @@
+use crate::config::{ComponentKind, ScoreboardConfig};
+use serde::Serialize;
+use std::collections::HashMap;
+use std::time::Instant;
+
+#[derive(Debug, Clone)]
+pub enum Action {
+    NumberIncrease { id: String },
+    NumberDecrease { id: String },
+    NumberReset { id: String },
+    TimerStart { id: String },
+    TimerStop { id: String },
+}
+
+#[derive(Debug, Clone)]
+pub struct HotkeyBinding {
+    pub shortcut: String,
+    pub action: Action,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct UiSnapshot {
+    pub background_color: String,
+    pub components: Vec<UiComponent>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct UiComponent {
+    pub id: String,
+    pub component_type: String,
+    pub x: i32,
+    pub y: i32,
+    pub font_family: String,
+    pub font_size: i32,
+    pub font_color: String,
+    pub text: Option<String>,
+    pub source: Option<String>,
+    pub width: Option<i32>,
+    pub height: Option<i32>,
+    pub opacity: Option<f32>,
+}
+
+#[derive(Debug, Clone)]
+pub struct RuntimeState {
+    pub config: Option<ScoreboardConfig>,
+    number_values: HashMap<String, i32>,
+    timer_values: HashMap<String, TimerRuntime>,
+    label_values: HashMap<String, String>,
+}
+
+#[derive(Debug, Clone)]
+struct TimerRuntime {
+    remaining_ms: i64,
+    running: bool,
+    last_tick: Option<Instant>,
+}
+
+impl RuntimeState {
+    pub fn new() -> Self {
+        Self {
+            config: None,
+            number_values: HashMap::new(),
+            timer_values: HashMap::new(),
+            label_values: HashMap::new(),
+        }
+    }
+
+    pub fn replace_config(&mut self, config: ScoreboardConfig) {
+        self.number_values.clear();
+        self.timer_values.clear();
+        self.label_values.clear();
+
+        for component in &config.components {
+            match &component.kind {
+                ComponentKind::Number { default, .. } => {
+                    self.number_values.insert(component.id.clone(), *default);
+                }
+                ComponentKind::Timer { default_ms, .. } => {
+                    self.timer_values.insert(
+                        component.id.clone(),
+                        TimerRuntime {
+                            remaining_ms: *default_ms,
+                            running: false,
+                            last_tick: None,
+                        },
+                    );
+                }
+                ComponentKind::Label { default } => {
+                    self.label_values.insert(component.id.clone(), default.clone());
+                }
+                ComponentKind::Image { .. } => {}
+            }
+        }
+
+        self.config = Some(config);
+    }
+
+    pub fn collect_hotkeys(&self) -> Vec<HotkeyBinding> {
+        let mut bindings = Vec::new();
+        let Some(config) = &self.config else {
+            return bindings;
+        };
+
+        for component in &config.components {
+            match &component.kind {
+                ComponentKind::Number { keybind, .. } => {
+                    bindings.push(HotkeyBinding {
+                        shortcut: keybind.increase.to_shortcut(),
+                        action: Action::NumberIncrease {
+                            id: component.id.clone(),
+                        },
+                    });
+                    bindings.push(HotkeyBinding {
+                        shortcut: keybind.decrease.to_shortcut(),
+                        action: Action::NumberDecrease {
+                            id: component.id.clone(),
+                        },
+                    });
+                    bindings.push(HotkeyBinding {
+                        shortcut: keybind.reset.to_shortcut(),
+                        action: Action::NumberReset {
+                            id: component.id.clone(),
+                        },
+                    });
+                }
+                ComponentKind::Timer { keybind, .. } => {
+                    bindings.push(HotkeyBinding {
+                        shortcut: keybind.start.to_shortcut(),
+                        action: Action::TimerStart {
+                            id: component.id.clone(),
+                        },
+                    });
+                    bindings.push(HotkeyBinding {
+                        shortcut: keybind.stop.to_shortcut(),
+                        action: Action::TimerStop {
+                            id: component.id.clone(),
+                        },
+                    });
+                }
+                ComponentKind::Label { .. } => {}
+                ComponentKind::Image { .. } => {}
+            }
+        }
+
+        bindings
+    }
+
+    pub fn apply_action(&mut self, action: &Action) -> bool {
+        match action {
+            Action::NumberIncrease { id } => {
+                if let Some(value) = self.number_values.get_mut(id) {
+                    *value += 1;
+                    return true;
+                }
+            }
+            Action::NumberDecrease { id } => {
+                if let Some(value) = self.number_values.get_mut(id) {
+                    *value = (*value - 1).max(0);
+                    return true;
+                }
+            }
+            Action::NumberReset { id } => {
+                if let Some(config) = &self.config {
+                    if let Some(default) = config.components.iter().find_map(|c| match &c.kind {
+                        ComponentKind::Number { default, .. } if c.id == *id => Some(*default),
+                        _ => None,
+                    }) {
+                        if let Some(value) = self.number_values.get_mut(id) {
+                            *value = default;
+                            return true;
+                        }
+                    }
+                }
+            }
+            Action::TimerStart { id } => {
+                if let Some(timer) = self.timer_values.get_mut(id) {
+                    if timer.remaining_ms > 0 && !timer.running {
+                        timer.running = true;
+                        timer.last_tick = Some(Instant::now());
+                        return true;
+                    }
+                }
+            }
+            Action::TimerStop { id } => {
+                if let Some(timer) = self.timer_values.get_mut(id) {
+                    if timer.running {
+                        timer.running = false;
+                        timer.last_tick = None;
+                        return true;
+                    }
+                }
+            }
+        }
+        false
+    }
+
+    pub fn tick_timers(&mut self) -> bool {
+        let mut changed = false;
+        let now = Instant::now();
+        for timer in self.timer_values.values_mut() {
+            if !timer.running {
+                continue;
+            }
+
+            let last = timer.last_tick.unwrap_or(now);
+            let elapsed_ms = now.duration_since(last).as_millis() as i64;
+            if elapsed_ms <= 0 {
+                continue;
+            }
+
+            timer.last_tick = Some(now);
+            let new_value = (timer.remaining_ms - elapsed_ms).max(0);
+            if new_value != timer.remaining_ms {
+                timer.remaining_ms = new_value;
+                changed = true;
+            }
+            if timer.remaining_ms == 0 && timer.running {
+                timer.running = false;
+                timer.last_tick = None;
+            }
+        }
+        changed
+    }
+
+    pub fn snapshot(&self) -> UiSnapshot {
+        let Some(config) = &self.config else {
+            return UiSnapshot {
+                background_color: "#000000".to_string(),
+                components: Vec::new(),
+            };
+        };
+
+        let components = config
+            .components
+            .iter()
+            .map(|component| {
+                let (component_type, text, source, width, height, opacity) = match &component.kind {
+                    ComponentKind::Number { .. } => (
+                        "number".to_string(),
+                        Some(
+                            self.number_values
+                                .get(&component.id)
+                                .copied()
+                                .unwrap_or_default()
+                                .to_string(),
+                        ),
+                        None,
+                        None,
+                        None,
+                        None,
+                    ),
+                    ComponentKind::Timer { .. } => (
+                        "timer".to_string(),
+                        Some(format_ms(
+                                self.timer_values
+                                    .get(&component.id)
+                                    .map(|t| t.remaining_ms)
+                                    .unwrap_or_default(),
+                        )),
+                        None,
+                        None,
+                        None,
+                        None,
+                    ),
+                    ComponentKind::Label { .. } => (
+                        "label".to_string(),
+                        Some(
+                            self.label_values
+                                .get(&component.id)
+                                .cloned()
+                                .unwrap_or_default(),
+                        ),
+                        None,
+                        None,
+                        None,
+                        None,
+                    ),
+                    ComponentKind::Image {
+                        source,
+                        width,
+                        height,
+                        opacity,
+                    } => (
+                        "image".to_string(),
+                        None,
+                        Some(source.clone()),
+                        Some(*width),
+                        Some(*height),
+                        Some(*opacity),
+                    ),
+                };
+
+                UiComponent {
+                    id: component.id.clone(),
+                    component_type,
+                    x: component.position.x,
+                    y: component.position.y,
+                    font_family: component.font.family.clone(),
+                    font_size: component.font.size,
+                    font_color: component.font.color.clone(),
+                    text,
+                    source,
+                    width,
+                    height,
+                    opacity,
+                }
+            })
+            .collect();
+
+        UiSnapshot {
+            background_color: config.global.background_color.clone(),
+            components,
+        }
+    }
+}
+
+fn format_ms(ms: i64) -> String {
+    let total_seconds = (ms.max(0) / 1000) as i64;
+    let hours = total_seconds / 3600;
+    let minutes = (total_seconds % 3600) / 60;
+    let seconds = total_seconds % 60;
+    if hours > 0 {
+        format!("{hours:02}:{minutes:02}:{seconds:02}")
+    } else {
+        format!("{minutes:02}:{seconds:02}")
+    }
+}

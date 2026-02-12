@@ -1,0 +1,39 @@
+[global]
+background_color = "#0F1723"
+font.family = "Segoe UI"
+font.size = 36
+font.color = "#F5F8FA"
+
+[home-score]
+type = "number"
+default = 0
+position.x = 36
+position.y = 30
+keybind.increase.key = "Q"
+keybind.decrease.key = "W"
+keybind.reset.key = "E"
+
+[timer]
+type = "timer"
+default = "00:08:00"
+position.x = 250
+position.y = 30
+keybind.start.key = "Space"
+keybind.stop.key = "Z"
+
+[home-label]
+type = "label"
+default = "AOA"
+position.x = 470
+position.y = 404
+font.size = 28
+font.color = "#D7E3EF"
+
+[sponsor-logo]
+type = "image"
+source = "images/sponsor.png"
+position.x = 480
+position.y = 40
+size.width = 128
+size.height = 128
+opacity = 0.92
