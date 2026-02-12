@@ -297,7 +297,6 @@ fn load_config_from_str_with_base(content: &str, base_dir: &Path) -> Result<Scor
         });
     }
 
-    components.sort_by(|a, b| a.id.cmp(&b.id));
     Ok(ScoreboardConfig { global, components })
 }
 

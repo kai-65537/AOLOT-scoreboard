@@ -1,29 +1,29 @@
 [global]
 background_color = "#0F1723"
 font.family = "Century gothic"
-font.size = 36
+font.size = 48
 font.color = "#002D56"
 
 [home-score]
 type = "number"
 default = 0
-position.x = 36
-position.y = 30
+position.x = 520
+position.y = 25
 
 
 [guest-score]
 type = "number"
 default = 0
-position.x = 36
-position.y = 70
+position.x = 520
+position.y = 102
 
 
 [timer]
 type = "timer"
 rounding = "basketball"
 default = "00:01:10"
-position.x = 250
-position.y = 30
+position.x = 100
+position.y = 180
 keybind.start.key = "Space"
 keybind.stop.key = "Z"
 
@@ -31,10 +31,15 @@ keybind.stop.key = "Z"
 type = "label"
 edit = true
 default = "AOA"
-position.x = 470
-position.y = 404
-font.size = 28
-font.color = "#D7E3EF"
+position.x = 100
+position.y = 25
+
+[guest-label]
+type = "label"
+edit = true
+default = "GUEST"
+position.x = 100
+position.y = 102
 
 [sponsor-logo]
 type = "image"

@@ -38,7 +38,7 @@ function renderSnapshot(snapshot) {
   root.style.backgroundColor = snapshot?.background_color ?? "#000000";
 
   const components = snapshot?.components ?? [];
-  for (const item of components) {
+  for (const item of [...components].reverse()) {
     const node =
       item.component_type === "image"
         ? document.createElement("img")
