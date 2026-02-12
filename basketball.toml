@@ -33,9 +33,9 @@ font.color = "#D7E3EF"
 
 [sponsor-logo]
 type = "image"
-source = "images/sponsor.png"
-position.x = 480
-position.y = 40
-size.width = 128
-size.height = 128
-opacity = 0.92
+source = "background.png"
+position.x = 0
+position.y = 0
+size.width = 640
+size.height = 250
+opacity = 1

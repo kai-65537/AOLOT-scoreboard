@@ -151,9 +151,16 @@ struct ImageSize {
 }
 
 pub fn load_config_from_path(path: &Path) -> Result<ScoreboardConfig, String> {
-    let content = fs::read_to_string(path)
-        .map_err(|e| format!("Failed reading config {}: {e}", path.display()))?;
-    let base_dir = path.parent().unwrap_or_else(|| Path::new("."));
+    let config_path = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        std::env::current_dir()
+            .map_err(|e| format!("Failed resolving current directory: {e}"))?
+            .join(path)
+    };
+    let content = fs::read_to_string(&config_path)
+        .map_err(|e| format!("Failed reading config {}: {e}", config_path.display()))?;
+    let base_dir = config_path.parent().unwrap_or_else(|| Path::new("."));
     load_config_from_str_with_base(&content, base_dir)
 }
 

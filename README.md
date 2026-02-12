@@ -59,6 +59,7 @@ cargo tauri dev
 ```
 
 On startup, if `basketball.toml` exists in the current working directory, it is loaded automatically.
+Relative file paths inside a loaded config (for example image `source`) are resolved relative to that config file's directory.
 
 ## Build Portable EXE
 
