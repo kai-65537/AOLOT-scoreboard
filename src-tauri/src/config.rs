@@ -31,11 +31,11 @@ pub struct ComponentConfig {
 pub enum ComponentKind {
     Number {
         default: i32,
-        keybind: NumberKeybind,
+        keybind: Option<NumberKeybind>,
     },
     Timer {
         default_ms: i64,
-        keybind: TimerKeybind,
+        keybind: Option<TimerKeybind>,
         rounding: TimerRounding,
     },
     Label {
@@ -205,17 +205,19 @@ fn load_config_from_str_with_base(content: &str, base_dir: &Path) -> Result<Scor
                     .ok_or_else(|| format!("'{id}' default must be an integer"))?
                     as i32;
 
-                let binds = raw
-                    .keybind
-                    .ok_or_else(|| format!("'{id}' number requires keybind section"))?;
+                let keybind = if let Some(binds) = raw.keybind.as_ref() {
+                    Some(NumberKeybind {
+                        increase: parse_keybind(id, binds, "increase")?,
+                        decrease: parse_keybind(id, binds, "decrease")?,
+                        reset: parse_keybind(id, binds, "reset")?,
+                    })
+                } else {
+                    None
+                };
 
                 ComponentKind::Number {
                     default,
-                    keybind: NumberKeybind {
-                        increase: parse_keybind(id, &binds, "increase")?,
-                        decrease: parse_keybind(id, &binds, "decrease")?,
-                        reset: parse_keybind(id, &binds, "reset")?,
-                    },
+                    keybind,
                 }
             }
             "timer" => {
@@ -228,17 +230,19 @@ fn load_config_from_str_with_base(content: &str, base_dir: &Path) -> Result<Scor
                     .and_then(|v| v.as_str())
                     .ok_or_else(|| format!("'{id}' default must be a timer string HH:MM:SS"))?;
 
-                let binds = raw
-                    .keybind
-                    .ok_or_else(|| format!("'{id}' timer requires keybind section"))?;
+                let keybind = if let Some(binds) = raw.keybind.as_ref() {
+                    Some(TimerKeybind {
+                        start: parse_keybind(id, binds, "start")?,
+                        stop: parse_keybind(id, binds, "stop")?,
+                    })
+                } else {
+                    None
+                };
 
                 let rounding = parse_timer_rounding(id, type_rounding.as_deref(), raw.rounding.as_deref())?;
                 ComponentKind::Timer {
                     default_ms: parse_timer_default(raw_default)?,
-                    keybind: TimerKeybind {
-                        start: parse_keybind(id, &binds, "start")?,
-                        stop: parse_keybind(id, &binds, "stop")?,
-                    },
+                    keybind,
                     rounding,
                 }
             }

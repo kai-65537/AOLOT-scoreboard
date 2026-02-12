@@ -1,17 +1,22 @@
 [global]
 background_color = "#0F1723"
-font.family = "Segoe UI"
+font.family = "Century gothic"
 font.size = 36
-font.color = "#F5F8FA"
+font.color = "#002D56"
 
 [home-score]
 type = "number"
 default = 0
 position.x = 36
 position.y = 30
-keybind.increase.key = "Q"
-keybind.decrease.key = "W"
-keybind.reset.key = "E"
+
+
+[guest-score]
+type = "number"
+default = 0
+position.x = 36
+position.y = 70
+
 
 [timer]
 type = "timer"

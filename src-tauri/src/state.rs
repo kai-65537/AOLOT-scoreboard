@@ -133,7 +133,10 @@ impl RuntimeState {
 
         for component in &config.components {
             match &component.kind {
-                ComponentKind::Number { keybind, .. } => {
+                ComponentKind::Number {
+                    keybind: Some(keybind),
+                    ..
+                } => {
                     bindings.push(HotkeyBinding {
                         shortcut: keybind.increase.to_shortcut(),
                         action: Action::NumberIncrease {
@@ -153,7 +156,10 @@ impl RuntimeState {
                         },
                     });
                 }
-                ComponentKind::Timer { keybind, .. } => {
+                ComponentKind::Timer {
+                    keybind: Some(keybind),
+                    ..
+                } => {
                     bindings.push(HotkeyBinding {
                         shortcut: keybind.start.to_shortcut(),
                         action: Action::TimerStart {
@@ -167,6 +173,8 @@ impl RuntimeState {
                         },
                     });
                 }
+                ComponentKind::Number { keybind: None, .. } => {}
+                ComponentKind::Timer { keybind: None, .. } => {}
                 ComponentKind::Label { .. } => {}
                 ComponentKind::Image { .. } => {}
             }

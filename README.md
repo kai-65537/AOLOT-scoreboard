@@ -25,6 +25,8 @@ Supported component `type` values:
 - `label` with optional `edit = true` for runtime text editing
 - `image` with `source`, `size.width`, `size.height`, optional `opacity`
 
+`keybind` sections for `number` and `timer` are optional. If omitted, that component is immutable at runtime.
+
 Timer rounding modes:
 
 - `rounding = "standard"` (default): `MM:SS` or `HH:MM:SS`, zero-padded
