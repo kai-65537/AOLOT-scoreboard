@@ -15,7 +15,8 @@ keybind.reset.key = "E"
 
 [timer]
 type = "timer"
-default = "00:08:00"
+rounding = "basketball"
+default = "00:01:10"
 position.x = 250
 position.y = 30
 keybind.start.key = "Space"
@@ -23,6 +24,7 @@ keybind.stop.key = "Z"
 
 [home-label]
 type = "label"
+edit = true
 default = "AOA"
 position.x = 470
 position.y = 404

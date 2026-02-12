@@ -36,9 +36,11 @@ pub enum ComponentKind {
     Timer {
         default_ms: i64,
         keybind: TimerKeybind,
+        rounding: TimerRounding,
     },
     Label {
         default: String,
+        edit: bool,
     },
     Image {
         source: String,
@@ -46,6 +48,13 @@ pub enum ComponentKind {
         height: i32,
         opacity: f32,
     },
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TimerRounding {
+    Standard,
+    Basketball,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -123,7 +132,7 @@ struct RawGlobal {
 #[derive(Debug, Clone, Deserialize)]
 struct RawComponent {
     #[serde(rename = "type")]
-    component_type: String,
+    component_type: toml::Value,
     default: Option<toml::Value>,
     position: Position,
     font: Option<FontOverride>,
@@ -131,6 +140,8 @@ struct RawComponent {
     source: Option<String>,
     size: Option<ImageSize>,
     opacity: Option<f32>,
+    rounding: Option<String>,
+    edit: Option<bool>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -174,8 +185,12 @@ fn load_config_from_str_with_base(content: &str, base_dir: &Path) -> Result<Scor
         validate_position(id, &raw.position)?;
         validate_font(id, &font)?;
 
-        let kind = match raw.component_type.as_str() {
+        let (component_type, type_rounding) = parse_component_type(id, &raw.component_type)?;
+        let kind = match component_type.as_str() {
             "number" => {
+                if raw.edit.is_some() {
+                    return Err(format!("'{id}' edit is only supported for label components"));
+                }
                 let default = raw
                     .default
                     .as_ref()
@@ -197,6 +212,9 @@ fn load_config_from_str_with_base(content: &str, base_dir: &Path) -> Result<Scor
                 }
             }
             "timer" => {
+                if raw.edit.is_some() {
+                    return Err(format!("'{id}' edit is only supported for label components"));
+                }
                 let raw_default = raw
                     .default
                     .as_ref()
@@ -207,12 +225,14 @@ fn load_config_from_str_with_base(content: &str, base_dir: &Path) -> Result<Scor
                     .keybind
                     .ok_or_else(|| format!("'{id}' timer requires keybind section"))?;
 
+                let rounding = parse_timer_rounding(id, type_rounding.as_deref(), raw.rounding.as_deref())?;
                 ComponentKind::Timer {
                     default_ms: parse_timer_default(raw_default)?,
                     keybind: TimerKeybind {
                         start: parse_keybind(id, &binds, "start")?,
                         stop: parse_keybind(id, &binds, "stop")?,
                     },
+                    rounding,
                 }
             }
             "label" => {
@@ -222,9 +242,15 @@ fn load_config_from_str_with_base(content: &str, base_dir: &Path) -> Result<Scor
                     .and_then(|v| v.as_str())
                     .ok_or_else(|| format!("'{id}' default must be a string"))?
                     .to_string();
-                ComponentKind::Label { default }
+                ComponentKind::Label {
+                    default,
+                    edit: raw.edit.unwrap_or(false),
+                }
             }
             "image" => {
+                if raw.edit.is_some() {
+                    return Err(format!("'{id}' edit is only supported for label components"));
+                }
                 let source = raw
                     .source
                     .as_ref()
@@ -262,6 +288,44 @@ fn load_config_from_str_with_base(content: &str, base_dir: &Path) -> Result<Scor
 
     components.sort_by(|a, b| a.id.cmp(&b.id));
     Ok(ScoreboardConfig { global, components })
+}
+
+fn parse_component_type(id: &str, raw_type: &toml::Value) -> Result<(String, Option<String>), String> {
+    if let Some(component_type) = raw_type.as_str() {
+        return Ok((component_type.to_string(), None));
+    }
+
+    let table = raw_type
+        .as_table()
+        .ok_or_else(|| format!("'{id}' type must be a string or table"))?;
+
+    let component_type = table
+        .get("name")
+        .or_else(|| table.get("kind"))
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| format!("'{id}' type table requires 'name' or 'kind' as a string"))?;
+
+    let rounding = table
+        .get("rounding")
+        .and_then(|v| v.as_str())
+        .map(|v| v.to_string());
+
+    Ok((component_type.to_string(), rounding))
+}
+
+fn parse_timer_rounding(
+    id: &str,
+    type_rounding: Option<&str>,
+    component_rounding: Option<&str>,
+) -> Result<TimerRounding, String> {
+    let rounding = type_rounding.or(component_rounding).unwrap_or("standard");
+    match rounding.to_ascii_lowercase().as_str() {
+        "standard" => Ok(TimerRounding::Standard),
+        "basketball" => Ok(TimerRounding::Basketball),
+        other => Err(format!(
+            "'{id}' has unsupported timer rounding '{other}' (expected 'standard' or 'basketball')"
+        )),
+    }
 }
 
 fn parse_global_settings(raw_global: Option<&toml::Value>) -> Result<GlobalSettings, String> {

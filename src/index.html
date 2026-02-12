@@ -11,5 +11,15 @@
   <body>
     <div id="error-banner" hidden></div>
     <main id="scoreboard-root" aria-label="Scoreboard canvas"></main>
+    <dialog id="label-edit-dialog">
+      <form id="label-edit-form" method="dialog">
+        <h2 id="label-edit-title">Edit Label</h2>
+        <input id="label-edit-input" type="text" autocomplete="off" />
+        <div class="dialog-actions">
+          <button id="label-edit-cancel" type="button">Cancel</button>
+          <button type="submit">Save</button>
+        </div>
+      </form>
+    </dialog>
   </body>
 </html>

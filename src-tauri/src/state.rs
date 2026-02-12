@@ -1,4 +1,4 @@
-use crate::config::{ComponentKind, ScoreboardConfig};
+use crate::config::{ComponentKind, ScoreboardConfig, TimerRounding};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::time::Instant;
@@ -38,6 +38,7 @@ pub struct UiComponent {
     pub width: Option<i32>,
     pub height: Option<i32>,
     pub opacity: Option<f32>,
+    pub editable: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -85,7 +86,7 @@ impl RuntimeState {
                         },
                     );
                 }
-                ComponentKind::Label { default } => {
+                ComponentKind::Label { default, .. } => {
                     self.label_values.insert(component.id.clone(), default.clone());
                 }
                 ComponentKind::Image { .. } => {}
@@ -93,6 +94,35 @@ impl RuntimeState {
         }
 
         self.config = Some(config);
+    }
+
+    pub fn set_label_value(&mut self, id: &str, value: String) -> Result<bool, String> {
+        if value.contains('\n') || value.contains('\r') {
+            return Err("Label text must be a single-line string".to_string());
+        }
+
+        let Some(config) = &self.config else {
+            return Err("No config loaded".to_string());
+        };
+
+        let Some(component) = config.components.iter().find(|c| c.id == id) else {
+            return Err(format!("Unknown component '{id}'"));
+        };
+
+        let ComponentKind::Label { edit, .. } = &component.kind else {
+            return Err(format!("Component '{id}' is not a label"));
+        };
+
+        if !edit {
+            return Err(format!("Component '{id}' is not editable"));
+        }
+
+        let current = self.label_values.get(id).cloned().unwrap_or_default();
+        if current == value {
+            return Ok(false);
+        }
+        self.label_values.insert(id.to_string(), value);
+        Ok(true)
     }
 
     pub fn collect_hotkeys(&self) -> Vec<HotkeyBinding> {
@@ -234,7 +264,7 @@ impl RuntimeState {
             .components
             .iter()
             .map(|component| {
-                let (component_type, text, source, width, height, opacity) = match &component.kind {
+                let (component_type, text, source, width, height, opacity, editable) = match &component.kind {
                     ComponentKind::Number { .. } => (
                         "number".to_string(),
                         Some(
@@ -248,21 +278,24 @@ impl RuntimeState {
                         None,
                         None,
                         None,
+                        false,
                     ),
-                    ComponentKind::Timer { .. } => (
+                    ComponentKind::Timer { rounding, .. } => (
                         "timer".to_string(),
                         Some(format_ms(
-                                self.timer_values
-                                    .get(&component.id)
-                                    .map(|t| t.remaining_ms)
-                                    .unwrap_or_default(),
+                            self.timer_values
+                                .get(&component.id)
+                                .map(|t| t.remaining_ms)
+                                .unwrap_or_default(),
+                            rounding,
                         )),
                         None,
                         None,
                         None,
                         None,
+                        false,
                     ),
-                    ComponentKind::Label { .. } => (
+                    ComponentKind::Label { edit, .. } => (
                         "label".to_string(),
                         Some(
                             self.label_values
@@ -274,6 +307,7 @@ impl RuntimeState {
                         None,
                         None,
                         None,
+                        *edit,
                     ),
                     ComponentKind::Image {
                         source,
@@ -287,6 +321,7 @@ impl RuntimeState {
                         Some(*width),
                         Some(*height),
                         Some(*opacity),
+                        false,
                     ),
                 };
 
@@ -303,6 +338,7 @@ impl RuntimeState {
                     width,
                     height,
                     opacity,
+                    editable,
                 }
             })
             .collect();
@@ -314,8 +350,15 @@ impl RuntimeState {
     }
 }
 
-fn format_ms(ms: i64) -> String {
-    let total_seconds = (ms.max(0) / 1000) as i64;
+fn format_ms(ms: i64, rounding: &TimerRounding) -> String {
+    match rounding {
+        TimerRounding::Standard => format_ms_standard(ms),
+        TimerRounding::Basketball => format_ms_basketball(ms),
+    }
+}
+
+fn format_ms_standard(ms: i64) -> String {
+    let total_seconds = ms.max(0) / 1000;
     let hours = total_seconds / 3600;
     let minutes = (total_seconds % 3600) / 60;
     let seconds = total_seconds % 60;
@@ -323,5 +366,26 @@ fn format_ms(ms: i64) -> String {
         format!("{hours:02}:{minutes:02}:{seconds:02}")
     } else {
         format!("{minutes:02}:{seconds:02}")
+    }
+}
+
+fn format_ms_basketball(ms: i64) -> String {
+    let clamped_ms = ms.max(0);
+
+    if clamped_ms < 60_000 {
+        let tenths_total = ((clamped_ms + 50) / 100) as i64;
+        let seconds = tenths_total / 10;
+        let tenths = tenths_total % 10;
+        return format!("{seconds}.{tenths}");
+    }
+
+    let rounded_seconds = ((clamped_ms + 500) / 1000) as i64;
+    let hours = rounded_seconds / 3600;
+    let minutes = (rounded_seconds % 3600) / 60;
+    let seconds = rounded_seconds % 60;
+    if hours > 0 {
+        format!("{hours}:{minutes}:{seconds:02}")
+    } else {
+        format!("{minutes}:{seconds:02}")
     }
 }

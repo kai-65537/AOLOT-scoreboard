@@ -60,3 +60,55 @@ body {
   font-size: 14px;
   line-height: 1.4;
 }
+
+#label-edit-dialog {
+  border: 1px solid #2f3e4a;
+  border-radius: 10px;
+  padding: 0;
+  background: #141d24;
+  color: #f0f3f5;
+  width: min(420px, calc(100vw - 24px));
+}
+
+#label-edit-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.5);
+}
+
+#label-edit-form {
+  margin: 0;
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+}
+
+#label-edit-title {
+  margin: 0;
+  font-family: "Segoe UI", sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+#label-edit-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #425664;
+  border-radius: 8px;
+  background: #0f151b;
+  color: #f0f3f5;
+  font-size: 14px;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.dialog-actions button {
+  border: 1px solid #4d6271;
+  border-radius: 8px;
+  padding: 6px 12px;
+  background: #1a252f;
+  color: #f0f3f5;
+  cursor: pointer;
+}

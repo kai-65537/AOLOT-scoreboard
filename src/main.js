@@ -1,7 +1,37 @@
 const { listen } = window.__TAURI__.event;
+const { invoke } = window.__TAURI__.core;
 
 const root = document.querySelector("#scoreboard-root");
 const errorBanner = document.querySelector("#error-banner");
+const editDialog = document.querySelector("#label-edit-dialog");
+const editForm = document.querySelector("#label-edit-form");
+const editInput = document.querySelector("#label-edit-input");
+const editTitle = document.querySelector("#label-edit-title");
+const editCancel = document.querySelector("#label-edit-cancel");
+
+let editingLabelId = null;
+
+async function setHotkeysPaused(paused) {
+  await invoke("set_hotkeys_paused", { paused });
+}
+
+async function openLabelEditor(item) {
+  try {
+    await setHotkeysPaused(true);
+  } catch (error) {
+    showError(String(error));
+    return;
+  }
+
+  editingLabelId = item.id;
+  editTitle.textContent = `Edit ${item.id}`;
+  editInput.value = item.text ?? "";
+  if (!editDialog.open) {
+    editDialog.showModal();
+  }
+  editInput.focus();
+  editInput.select();
+}
 
 function renderSnapshot(snapshot) {
   root.innerHTML = "";
@@ -33,6 +63,14 @@ function renderSnapshot(snapshot) {
       node.style.fontSize = `${item.font_size}px`;
       node.style.color = item.font_color;
       node.textContent = item.text ?? "";
+
+      if (item.component_type === "label" && item.editable) {
+        node.style.cursor = "pointer";
+        node.title = `Click to edit ${item.id}`;
+        node.addEventListener("click", () => {
+          void openLabelEditor(item);
+        });
+      }
     }
 
     root.appendChild(node);
@@ -50,6 +88,39 @@ function hideError() {
 }
 
 window.addEventListener("DOMContentLoaded", async () => {
+  editCancel.addEventListener("click", () => {
+    editDialog.close();
+  });
+
+  editDialog.addEventListener("close", async () => {
+    editingLabelId = null;
+    try {
+      await setHotkeysPaused(false);
+    } catch (error) {
+      showError(String(error));
+    }
+  });
+
+  editForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!editingLabelId) {
+      editDialog.close();
+      return;
+    }
+
+    try {
+      await invoke("update_label_text", {
+        id: editingLabelId,
+        value: editInput.value,
+      });
+      editingLabelId = null;
+      editDialog.close();
+      hideError();
+    } catch (error) {
+      showError(String(error));
+    }
+  });
+
   await listen("scoreboard://state-updated", (event) => {
     hideError();
     renderSnapshot(event.payload);

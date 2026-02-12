@@ -23,6 +23,7 @@ const DEFAULT_CONFIG_NAME: &str = "basketball.toml";
 struct AppState {
     runtime: Arc<Mutex<RuntimeState>>,
     action_by_shortcut: Arc<Mutex<HashMap<String, Action>>>,
+    hotkeys_paused: Arc<Mutex<bool>>,
 }
 
 #[tauri::command]
@@ -42,13 +43,61 @@ fn load_config_from_text(
     apply_config(app, state, config)
 }
 
+#[tauri::command]
+fn update_label_text(
+    app: AppHandle,
+    state: tauri::State<AppState>,
+    id: String,
+    value: String,
+) -> Result<(), String> {
+    let changed = {
+        let mut runtime = state.runtime.lock().map_err(|_| "Runtime lock poisoned".to_string())?;
+        runtime.set_label_value(&id, value)?
+    };
+    if changed {
+        emit_snapshot(&app, &state.runtime)?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn set_hotkeys_paused(
+    app: AppHandle,
+    state: tauri::State<AppState>,
+    paused: bool,
+) -> Result<(), String> {
+    {
+        let mut guard = state
+            .hotkeys_paused
+            .lock()
+            .map_err(|_| "Hotkey pause lock poisoned".to_string())?;
+        *guard = paused;
+    }
+
+    if paused {
+        unregister_hotkeys(&app, &state)?;
+    } else {
+        register_hotkeys(&app, &state)?;
+    }
+
+    Ok(())
+}
+
 fn apply_config(app: AppHandle, state: tauri::State<AppState>, config: config::ScoreboardConfig) -> Result<(), String> {
     {
         let mut runtime = state.runtime.lock().map_err(|_| "Runtime lock poisoned".to_string())?;
         runtime.replace_config(config);
     }
 
-    register_hotkeys(&app, &state)?;
+    let paused = *state
+        .hotkeys_paused
+        .lock()
+        .map_err(|_| "Hotkey pause lock poisoned".to_string())?;
+    if paused {
+        unregister_hotkeys(&app, &state)?;
+    } else {
+        register_hotkeys(&app, &state)?;
+    }
     emit_snapshot(&app, &state.runtime)?;
     Ok(())
 }
@@ -59,6 +108,7 @@ pub fn run() {
         .manage(AppState {
             runtime: Arc::new(Mutex::new(RuntimeState::new())),
             action_by_shortcut: Arc::new(Mutex::new(HashMap::new())),
+            hotkeys_paused: Arc::new(Mutex::new(false)),
         })
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
@@ -109,7 +159,9 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             load_config_from_file,
-            load_config_from_text
+            load_config_from_text,
+            update_label_text,
+            set_hotkeys_paused
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -127,6 +179,14 @@ fn handle_shortcut(app: &AppHandle, shortcut: String) {
     let Some(state) = app.try_state::<AppState>() else {
         return;
     };
+    let paused = match state.hotkeys_paused.lock() {
+        Ok(g) => *g,
+        Err(_) => return,
+    };
+    if paused {
+        return;
+    }
+
     let action = {
         let guard = match state.action_by_shortcut.lock() {
             Ok(g) => g,
@@ -154,7 +214,8 @@ fn handle_shortcut(app: &AppHandle, shortcut: String) {
 
 fn spawn_timer_thread(app: AppHandle) {
     thread::spawn(move || loop {
-        thread::sleep(Duration::from_millis(200));
+        // Keep updates frequent enough for tenths-of-a-second display modes.
+        thread::sleep(Duration::from_millis(50));
         let Some(state) = app.try_state::<AppState>() else {
             continue;
         };
@@ -173,9 +234,7 @@ fn spawn_timer_thread(app: AppHandle) {
 }
 
 fn register_hotkeys(app: &AppHandle, state: &tauri::State<AppState>) -> Result<(), String> {
-    app.global_shortcut()
-        .unregister_all()
-        .map_err(|e| format!("Failed to clear existing shortcuts: {e}"))?;
+    unregister_hotkeys(app, state)?;
 
     let bindings = {
         let runtime = state.runtime.lock().map_err(|_| "Runtime lock poisoned".to_string())?;
@@ -198,6 +257,19 @@ fn register_hotkeys(app: &AppHandle, state: &tauri::State<AppState>) -> Result<(
         .lock()
         .map_err(|_| "Shortcut map lock poisoned".to_string())?;
     *map = action_map;
+    Ok(())
+}
+
+fn unregister_hotkeys(app: &AppHandle, state: &tauri::State<AppState>) -> Result<(), String> {
+    app.global_shortcut()
+        .unregister_all()
+        .map_err(|e| format!("Failed to clear existing shortcuts: {e}"))?;
+
+    let mut map = state
+        .action_by_shortcut
+        .lock()
+        .map_err(|_| "Shortcut map lock poisoned".to_string())?;
+    map.clear();
     Ok(())
 }
 
