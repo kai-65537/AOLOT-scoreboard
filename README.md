@@ -1,31 +1,40 @@
-# AOL Scoreboard (Windows, Tauri + Rust)
+<p align="center">
+  <img width="128" src="./assets/icon-large.png">
+</p>
 
-Custom livestream scoreboard app with:
+# AOL Overlay Toolkit
+
+***AOLOT*** (Andrews Osborne Live Overlay Toolkit) is a custom livestream scoreboard app written in Rust with Tauri, which is in active development for the *Andrews Osborne Live* project.
+
+*AOLOT* features:
 
 - fixed window size `640x480`
-- `File -> Load Config...` menu action
-- TOML-driven layout/behavior
+- user-specified TOML-driven layout configuration with hot-reloading
 - global hotkeys that work when the app is out of focus
 
-## Config
+## Configuration
 
-Use `basketball.toml` as the minimal template.
+### Global settings
 
-Global defaults:
+*AOLOT* loads the layout from a TOML file at startup and applies updates when that file changes. Global settings control app-wide styling and are shared by all components.
 
 - `[global].background_color`
 - `[global].font.family`
 - `[global].font.size`
 - `[global].font.color`
 
-Supported component `type` values:
+### Components
 
-- `number` with `keybind.increase`, `keybind.decrease`, `keybind.reset`
-- `timer` with `keybind.start`, `keybind.stop`, optional `keybind.increase`, `keybind.decrease`, `keybind.reset`, and `default = "HH:MM:SS"`
-- `label` with optional `edit = true` for runtime text editing
-- `image` with `source`, `size.width`, `size.height`, optional `opacity`
+Each component is defined in TOML with a `type` and type-specific fields. Changes are hot-reloaded, so edits to component definitions are reflected while the app is running.
 
-`keybind` sections for `number` and `timer` are optional. If omitted, that component is immutable at runtime.
+Supported `type` values:
+
+- `number`: optional `keybind.increase`, `keybind.decrease`, `keybind.reset`
+- `timer`: `keybind.start`, `keybind.stop`; optional `keybind.increase`, `keybind.decrease`, `keybind.reset`; optional `default = "HH:MM:SS"`
+- `label`: optional `edit = true` for runtime text editing
+- `image`: `source`, `size.width`, `size.height`; optional `opacity`
+
+If `keybind` is omitted for `number` or `timer`, that component is read-only at runtime.
 
 Timer rounding modes:
 
@@ -41,7 +50,11 @@ type.rounding = "basketball"
 
 Editable labels (`edit = true`) can be clicked while the app is running to open an input dialog and update label text in memory only (the config file is not modified). While this dialog is open, global scoreboard hotkeys are paused and restored when it closes.
 
-Keybind format is Windows-oriented and structured:
+### Keybinding
+
+Keybindings are Windows-oriented and uses one required key plus optional modifier flags.
+
+Example:
 
 ```toml
 keybind.increase.key = "Q"
@@ -53,22 +66,6 @@ keybind.increase.win = false
 
 Only `key` is required. Modifier flags default to `false`.
 
-## Run
+## Contributing
 
-```powershell
-cd src-tauri
-cargo tauri dev
-```
-
-On startup, if `basketball.toml` exists in the current working directory, it is loaded automatically.
-Relative file paths inside a loaded config (for example image `source`) are resolved relative to that config file's directory.
-
-## Build Portable EXE
-
-```powershell
-cd src-tauri
-cargo tauri build --bundles none
-```
-
-The portable executable is produced under `src-tauri/target/release/`.
-
+*AOLOT* is in active development and would benefit from any help that expands upon the currently limited features. We are open to any form of contributions and will do our best to offer any support that might help you do so; if you are interested, feel free to reach out to any contributor listed on this repository.
