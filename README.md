@@ -71,3 +71,4 @@ cargo tauri build --bundles none
 ```
 
 The portable executable is produced under `src-tauri/target/release/`.
+

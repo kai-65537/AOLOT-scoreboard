@@ -2,5 +2,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    aol_score_lib::run()
+    aolot_scoreboard_lib::run()
 }
+

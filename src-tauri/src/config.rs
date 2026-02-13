@@ -22,8 +22,15 @@ pub struct GlobalSettings {
 pub struct ComponentConfig {
     pub id: String,
     pub position: Position,
+    pub alignment: Option<ComponentAlignment>,
     pub font: Font,
     pub kind: ComponentKind,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ComponentAlignment {
+    Center,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -135,6 +142,7 @@ struct RawComponent {
     component_type: toml::Value,
     default: Option<toml::Value>,
     position: Position,
+    alignment: Option<String>,
     font: Option<FontOverride>,
     keybind: Option<BTreeMap<String, KeybindSpec>>,
     source: Option<String>,
@@ -193,6 +201,7 @@ fn load_config_from_str_with_base(content: &str, base_dir: &Path) -> Result<Scor
         validate_font(id, &font)?;
 
         let (component_type, type_rounding) = parse_component_type(id, &raw.component_type)?;
+        let alignment = parse_alignment(id, raw.alignment.as_deref())?;
         let kind = match component_type.as_str() {
             "number" => {
                 if raw.edit.is_some() {
@@ -259,6 +268,9 @@ fn load_config_from_str_with_base(content: &str, base_dir: &Path) -> Result<Scor
                 }
             }
             "image" => {
+                if alignment.is_some() {
+                    return Err(format!("'{id}' alignment is only supported for number, timer, and label components"));
+                }
                 if raw.edit.is_some() {
                     return Err(format!("'{id}' edit is only supported for label components"));
                 }
@@ -289,9 +301,15 @@ fn load_config_from_str_with_base(content: &str, base_dir: &Path) -> Result<Scor
             other => return Err(format!("'{id}' has unsupported type '{other}'")),
         };
 
+        let allow_alignment = matches!(
+            &kind,
+            ComponentKind::Number { .. } | ComponentKind::Timer { .. } | ComponentKind::Label { .. }
+        );
+
         components.push(ComponentConfig {
             id: id.to_string(),
             position: raw.position,
+            alignment: if allow_alignment { alignment } else { None },
             font,
             kind,
         });
@@ -334,6 +352,19 @@ fn parse_timer_rounding(
         "basketball" => Ok(TimerRounding::Basketball),
         other => Err(format!(
             "'{id}' has unsupported timer rounding '{other}' (expected 'standard' or 'basketball')"
+        )),
+    }
+}
+
+fn parse_alignment(id: &str, raw_alignment: Option<&str>) -> Result<Option<ComponentAlignment>, String> {
+    let Some(alignment) = raw_alignment else {
+        return Ok(None);
+    };
+
+    match alignment.to_ascii_lowercase().as_str() {
+        "center" => Ok(Some(ComponentAlignment::Center)),
+        other => Err(format!(
+            "'{id}' has unsupported alignment '{other}' (expected 'center')"
         )),
     }
 }

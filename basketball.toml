@@ -7,16 +7,24 @@ font.color = "#002D56"
 [home-score]
 type = "number"
 default = 0
-position.x = 520
-position.y = 25
-
+position.x = 555
+position.y = 55
+alignment = "center"
+keybind.increase.key = "Q"
+keybind.decrease.key = "W"
+keybind.reset.key = "E"
 
 [guest-score]
 type = "number"
 default = 0
-position.x = 520
-position.y = 102
+position.x = 555
+position.y = 132
+alignment = "center"
 
+[period-number]
+type = "number"
+default = 1
+position. 
 
 [timer]
 type = "timer"

@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "aol-score",
+  "productName": "aolot-scoreboard",
   "version": "0.1.0",
-  "identifier": "com.kai.aol-score",
+  "identifier": "com.kai.aolot-scoreboard",
   "build": {
     "frontendDist": "../src"
   },
@@ -10,7 +10,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "aol-score",
+        "title": "aolot-scoreboard",
         "width": 640,
         "height": 480,
         "resizable": false,
@@ -38,3 +38,4 @@
     ]
   }
 }
+

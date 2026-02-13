@@ -48,6 +48,12 @@ function renderSnapshot(snapshot) {
     node.dataset.componentId = item.id;
     node.style.left = `${item.x}px`;
     node.style.top = `${item.y}px`;
+    const centered =
+      item.alignment === "center" &&
+      (item.component_type === "number" ||
+        item.component_type === "timer" ||
+        item.component_type === "label");
+    node.style.transform = centered ? "translate(-50%, -50%)" : "";
 
     if (item.component_type === "image") {
       if (item.width) node.style.width = `${item.width}px`;

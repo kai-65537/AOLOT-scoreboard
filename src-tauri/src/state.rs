@@ -1,4 +1,4 @@
-use crate::config::{ComponentKind, ScoreboardConfig, TimerRounding};
+use crate::config::{ComponentAlignment, ComponentKind, ScoreboardConfig, TimerRounding};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::time::Instant;
@@ -30,6 +30,7 @@ pub struct UiComponent {
     pub component_type: String,
     pub x: i32,
     pub y: i32,
+    pub alignment: Option<String>,
     pub font_family: String,
     pub font_size: i32,
     pub font_color: String,
@@ -338,6 +339,9 @@ impl RuntimeState {
                     component_type,
                     x: component.position.x,
                     y: component.position.y,
+                    alignment: component.alignment.as_ref().map(|alignment| match alignment {
+                        ComponentAlignment::Center => "center".to_string(),
+                    }),
                     font_family: component.font.family.clone(),
                     font_size: component.font.size,
                     font_color: component.font.color.clone(),
