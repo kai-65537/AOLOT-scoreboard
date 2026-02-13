@@ -12,6 +12,10 @@
 - user-specified TOML-driven layout configuration with hot-reloading
 - global hotkeys that work when the app is out of focus
 
+## Prerequisites
+
+To run the executables provided in the *Release* section similar to a standalone binary, you need to have working installations of [Microsoft Edge WebView2](https://developer.microsoft.com/en-us/microsoft-edge/webview2/?form=MA13LH) and [Microsoft Visual C++ Redistributable](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170#latest-supported-redistributable-version). If you have a handful of third-party software or games installed, it is very likely that you already meet the prerequisites.
+
 ## Configuration
 
 ### Global settings
