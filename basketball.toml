@@ -24,7 +24,8 @@ alignment = "center"
 [period-number]
 type = "number"
 default = 1
-position. 
+position.x = 425
+position.y = 180
 
 [timer]
 type = "timer"

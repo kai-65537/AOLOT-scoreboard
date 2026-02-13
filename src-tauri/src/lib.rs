@@ -3,7 +3,9 @@ mod state;
 
 use crate::config::{load_config_from_path, load_config_from_str};
 use crate::state::{Action, RuntimeState, UiSnapshot};
+use notify::{Event, EventKind, RecursiveMode, Watcher};
 use std::collections::HashMap;
+use std::path::Path;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
@@ -24,13 +26,16 @@ struct AppState {
     runtime: Arc<Mutex<RuntimeState>>,
     action_by_shortcut: Arc<Mutex<HashMap<String, Action>>>,
     hotkeys_paused: Arc<Mutex<bool>>,
+    active_config_path: Arc<Mutex<Option<PathBuf>>>,
+    config_watcher: Arc<Mutex<Option<notify::RecommendedWatcher>>>,
 }
 
 #[tauri::command]
 fn load_config_from_file(app: AppHandle, state: tauri::State<AppState>, path: String) -> Result<(), String> {
-    let path = PathBuf::from(path);
-    let config = load_config_from_path(&path)?;
-    apply_config(app, state, config)
+    let resolved_path = resolve_config_path(Path::new(&path))?;
+    let config = load_config_from_path(&resolved_path)?;
+    apply_config(app.clone(), &state, config)?;
+    configure_config_hot_reload(&app, &state, Some(resolved_path))
 }
 
 #[tauri::command]
@@ -40,7 +45,8 @@ fn load_config_from_text(
     content: String,
 ) -> Result<(), String> {
     let config = load_config_from_str(&content)?;
-    apply_config(app, state, config)
+    apply_config(app.clone(), &state, config)?;
+    configure_config_hot_reload(&app, &state, None)
 }
 
 #[tauri::command]
@@ -83,23 +89,123 @@ fn set_hotkeys_paused(
     Ok(())
 }
 
-fn apply_config(app: AppHandle, state: tauri::State<AppState>, config: config::ScoreboardConfig) -> Result<(), String> {
-    {
+fn apply_config(app: AppHandle, state: &tauri::State<AppState>, config: config::ScoreboardConfig) -> Result<(), String> {
+    let previous_runtime = {
         let mut runtime = state.runtime.lock().map_err(|_| "Runtime lock poisoned".to_string())?;
+        let previous = runtime.clone();
         runtime.replace_config(config);
-    }
+        previous
+    };
 
     let paused = *state
         .hotkeys_paused
         .lock()
         .map_err(|_| "Hotkey pause lock poisoned".to_string())?;
-    if paused {
-        unregister_hotkeys(&app, &state)?;
+
+    let hotkey_result = if paused {
+        unregister_hotkeys(&app, &state)
     } else {
-        register_hotkeys(&app, &state)?;
+        register_hotkeys(&app, &state)
+    };
+
+    if let Err(error) = hotkey_result {
+        {
+            let mut runtime = state.runtime.lock().map_err(|_| "Runtime lock poisoned".to_string())?;
+            *runtime = previous_runtime;
+        }
+        if paused {
+            let _ = unregister_hotkeys(&app, &state);
+        } else {
+            let _ = register_hotkeys(&app, &state);
+        }
+        return Err(error);
     }
+
     emit_snapshot(&app, &state.runtime)?;
     Ok(())
+}
+
+fn resolve_config_path(path: &Path) -> Result<PathBuf, String> {
+    if path.is_absolute() {
+        return Ok(path.to_path_buf());
+    }
+    let cwd = std::env::current_dir().map_err(|e| format!("Failed to get current directory: {e}"))?;
+    Ok(cwd.join(path))
+}
+
+fn configure_config_hot_reload(
+    app: &AppHandle,
+    state: &tauri::State<AppState>,
+    path: Option<PathBuf>,
+) -> Result<(), String> {
+    {
+        let mut active_path = state
+            .active_config_path
+            .lock()
+            .map_err(|_| "Active config path lock poisoned".to_string())?;
+        *active_path = path.clone();
+    }
+
+    let mut watcher_slot = state
+        .config_watcher
+        .lock()
+        .map_err(|_| "Config watcher lock poisoned".to_string())?;
+    *watcher_slot = None;
+
+    let Some(path) = path else {
+        return Ok(());
+    };
+
+    let app_handle = app.clone();
+    let mut watcher = notify::recommended_watcher(move |result: notify::Result<Event>| match result {
+        Ok(event) => {
+            if !is_hot_reload_event(&event) {
+                return;
+            }
+            if let Err(e) = reload_active_config(&app_handle) {
+                emit_error(&app_handle, &e);
+            }
+        }
+        Err(e) => {
+            emit_error(&app_handle, &format!("Config watcher error: {e}"));
+        }
+    })
+    .map_err(|e| format!("Failed to start config watcher: {e}"))?;
+
+    watcher
+        .watch(&path, RecursiveMode::NonRecursive)
+        .map_err(|e| format!("Failed to watch config {}: {e}", path.display()))?;
+
+    *watcher_slot = Some(watcher);
+    Ok(())
+}
+
+fn is_hot_reload_event(event: &Event) -> bool {
+    matches!(
+        event.kind,
+        EventKind::Create(_) | EventKind::Modify(_) | EventKind::Any
+    )
+}
+
+fn reload_active_config(app: &AppHandle) -> Result<(), String> {
+    let Some(state) = app.try_state::<AppState>() else {
+        return Ok(());
+    };
+
+    let path = {
+        let guard = state
+            .active_config_path
+            .lock()
+            .map_err(|_| "Active config path lock poisoned".to_string())?;
+        guard.clone()
+    };
+
+    let Some(path) = path else {
+        return Ok(());
+    };
+
+    let config = load_config_from_path(&path)?;
+    apply_config(app.clone(), &state, config)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -109,6 +215,8 @@ pub fn run() {
             runtime: Arc::new(Mutex::new(RuntimeState::new())),
             action_by_shortcut: Arc::new(Mutex::new(HashMap::new())),
             hotkeys_paused: Arc::new(Mutex::new(false)),
+            active_config_path: Arc::new(Mutex::new(None)),
+            config_watcher: Arc::new(Mutex::new(None)),
         })
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
