@@ -3,6 +3,8 @@ const { invoke } = window.__TAURI__.core;
 
 const root = document.querySelector("#scoreboard-root");
 const errorBanner = document.querySelector("#error-banner");
+const hotkeyToggle = document.querySelector("#hotkey-toggle");
+const hotkeyToggleHotspot = document.querySelector("#hotkey-toggle-hotspot");
 const editDialog = document.querySelector("#label-edit-dialog");
 const editForm = document.querySelector("#label-edit-form");
 const editInput = document.querySelector("#label-edit-input");
@@ -10,20 +12,54 @@ const editTitle = document.querySelector("#label-edit-title");
 const editCancel = document.querySelector("#label-edit-cancel");
 
 let editingLabelId = null;
+let manualHotkeysPaused = false;
+let appliedHotkeysPaused = false;
+let isWindowActive = document.hasFocus();
+let isHotkeyToggleHotspotHovered = false;
+let isHotkeyToggleHovered = false;
 
 async function setHotkeysPaused(paused) {
   await invoke("set_hotkeys_paused", { paused });
 }
 
+function shouldPauseHotkeys() {
+  return manualHotkeysPaused || editingLabelId !== null;
+}
+
+function updateHotkeyToggleUi() {
+  const showToggle =
+    isWindowActive &&
+    (manualHotkeysPaused || isHotkeyToggleHotspotHovered || isHotkeyToggleHovered);
+  hotkeyToggle.hidden = !showToggle;
+  hotkeyToggle.dataset.paused = manualHotkeysPaused ? "true" : "false";
+  hotkeyToggle.setAttribute("aria-pressed", manualHotkeysPaused ? "true" : "false");
+  hotkeyToggle.textContent = manualHotkeysPaused ? "Resume Key Capture" : "Pause Key Capture";
+}
+
+async function syncHotkeyPauseState() {
+  const shouldPause = shouldPauseHotkeys();
+  if (shouldPause === appliedHotkeysPaused) {
+    return;
+  }
+
+  await setHotkeysPaused(shouldPause);
+  appliedHotkeysPaused = shouldPause;
+}
+
 async function openLabelEditor(item) {
+  const previousEditingLabelId = editingLabelId;
+  editingLabelId = item.id;
+
   try {
-    await setHotkeysPaused(true);
+    await syncHotkeyPauseState();
+    hideError();
   } catch (error) {
+    editingLabelId = previousEditingLabelId;
+    await syncHotkeyPauseState().catch(() => {});
     showError(String(error));
     return;
   }
 
-  editingLabelId = item.id;
   editTitle.textContent = `Edit ${item.id}`;
   editInput.value = item.text ?? "";
   if (!editDialog.open) {
@@ -94,6 +130,55 @@ function hideError() {
 }
 
 window.addEventListener("DOMContentLoaded", async () => {
+  updateHotkeyToggleUi();
+
+  hotkeyToggleHotspot.addEventListener("mouseenter", () => {
+    isHotkeyToggleHotspotHovered = true;
+    updateHotkeyToggleUi();
+  });
+
+  hotkeyToggleHotspot.addEventListener("mouseleave", () => {
+    isHotkeyToggleHotspotHovered = false;
+    updateHotkeyToggleUi();
+  });
+
+  hotkeyToggle.addEventListener("click", async () => {
+    const previousManualHotkeysPaused = manualHotkeysPaused;
+    manualHotkeysPaused = !manualHotkeysPaused;
+    updateHotkeyToggleUi();
+
+    try {
+      await syncHotkeyPauseState();
+      hideError();
+    } catch (error) {
+      manualHotkeysPaused = previousManualHotkeysPaused;
+      updateHotkeyToggleUi();
+      showError(String(error));
+    }
+  });
+
+  hotkeyToggle.addEventListener("mouseenter", () => {
+    isHotkeyToggleHovered = true;
+    updateHotkeyToggleUi();
+  });
+
+  hotkeyToggle.addEventListener("mouseleave", () => {
+    isHotkeyToggleHovered = false;
+    updateHotkeyToggleUi();
+  });
+
+  window.addEventListener("focus", () => {
+    isWindowActive = true;
+    updateHotkeyToggleUi();
+  });
+
+  window.addEventListener("blur", () => {
+    isWindowActive = false;
+    isHotkeyToggleHotspotHovered = false;
+    isHotkeyToggleHovered = false;
+    updateHotkeyToggleUi();
+  });
+
   editCancel.addEventListener("click", () => {
     editDialog.close();
   });
@@ -101,7 +186,8 @@ window.addEventListener("DOMContentLoaded", async () => {
   editDialog.addEventListener("close", async () => {
     editingLabelId = null;
     try {
-      await setHotkeysPaused(false);
+      await syncHotkeyPauseState();
+      hideError();
     } catch (error) {
       showError(String(error));
     }
