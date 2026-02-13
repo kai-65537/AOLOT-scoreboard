@@ -21,7 +21,7 @@ Global defaults:
 Supported component `type` values:
 
 - `number` with `keybind.increase`, `keybind.decrease`, `keybind.reset`
-- `timer` with `keybind.start`, `keybind.stop` and `default = "HH:MM:SS"`
+- `timer` with `keybind.start`, `keybind.stop`, optional `keybind.increase`, `keybind.decrease`, `keybind.reset`, and `default = "HH:MM:SS"`
 - `label` with optional `edit = true` for runtime text editing
 - `image` with `source`, `size.width`, `size.height`, optional `opacity`
 

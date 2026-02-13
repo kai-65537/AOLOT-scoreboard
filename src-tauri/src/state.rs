@@ -10,6 +10,9 @@ pub enum Action {
     NumberReset { id: String },
     TimerStart { id: String },
     TimerStop { id: String },
+    TimerReset { id: String },
+    TimerIncrease { id: String },
+    TimerDecrease { id: String },
 }
 
 #[derive(Debug, Clone)]
@@ -173,6 +176,30 @@ impl RuntimeState {
                             id: component.id.clone(),
                         },
                     });
+                    if let Some(reset) = &keybind.reset {
+                        bindings.push(HotkeyBinding {
+                            shortcut: reset.to_shortcut(),
+                            action: Action::TimerReset {
+                                id: component.id.clone(),
+                            },
+                        });
+                    }
+                    if let Some(increase) = &keybind.increase {
+                        bindings.push(HotkeyBinding {
+                            shortcut: increase.to_shortcut(),
+                            action: Action::TimerIncrease {
+                                id: component.id.clone(),
+                            },
+                        });
+                    }
+                    if let Some(decrease) = &keybind.decrease {
+                        bindings.push(HotkeyBinding {
+                            shortcut: decrease.to_shortcut(),
+                            action: Action::TimerDecrease {
+                                id: component.id.clone(),
+                            },
+                        });
+                    }
                 }
                 ComponentKind::Number { keybind: None, .. } => {}
                 ComponentKind::Timer { keybind: None, .. } => {}
@@ -223,10 +250,67 @@ impl RuntimeState {
             Action::TimerStop { id } => {
                 if let Some(timer) = self.timer_values.get_mut(id) {
                     if timer.running {
+                        sync_timer(timer, Instant::now());
                         timer.running = false;
                         timer.last_tick = None;
                         return true;
                     }
+                }
+            }
+            Action::TimerReset { id } => {
+                if let Some(config) = &self.config {
+                    if let Some(default) = config.components.iter().find_map(|c| match &c.kind {
+                        ComponentKind::Timer { default_ms, .. } if c.id == *id => Some(*default_ms),
+                        _ => None,
+                    }) {
+                        if let Some(timer) = self.timer_values.get_mut(id) {
+                            let now = Instant::now();
+                            if timer.running {
+                                sync_timer(timer, now);
+                            }
+                            timer.remaining_ms = default;
+                            if timer.running {
+                                if timer.remaining_ms > 0 {
+                                    timer.last_tick = Some(now);
+                                } else {
+                                    timer.running = false;
+                                    timer.last_tick = None;
+                                }
+                            }
+                            return true;
+                        }
+                    }
+                }
+            }
+            Action::TimerIncrease { id } => {
+                if let Some(timer) = self.timer_values.get_mut(id) {
+                    let now = Instant::now();
+                    if timer.running {
+                        sync_timer(timer, now);
+                    }
+                    timer.remaining_ms += 1_000;
+                    if timer.running {
+                        timer.last_tick = Some(now);
+                    }
+                    return true;
+                }
+            }
+            Action::TimerDecrease { id } => {
+                if let Some(timer) = self.timer_values.get_mut(id) {
+                    let now = Instant::now();
+                    if timer.running {
+                        sync_timer(timer, now);
+                    }
+                    timer.remaining_ms = (timer.remaining_ms - 1_000).max(0);
+                    if timer.running {
+                        if timer.remaining_ms > 0 {
+                            timer.last_tick = Some(now);
+                        } else {
+                            timer.running = false;
+                            timer.last_tick = None;
+                        }
+                    }
+                    return true;
                 }
             }
         }
@@ -366,6 +450,24 @@ fn format_ms(ms: i64, rounding: &TimerRounding) -> String {
     match rounding {
         TimerRounding::Standard => format_ms_standard(ms),
         TimerRounding::Basketball => format_ms_basketball(ms),
+    }
+}
+
+fn sync_timer(timer: &mut TimerRuntime, now: Instant) {
+    if !timer.running {
+        return;
+    }
+
+    let last = timer.last_tick.unwrap_or(now);
+    let elapsed_ms = now.duration_since(last).as_millis() as i64;
+    if elapsed_ms > 0 {
+        timer.remaining_ms = (timer.remaining_ms - elapsed_ms).max(0);
+    }
+    if timer.remaining_ms > 0 {
+        timer.last_tick = Some(now);
+    } else {
+        timer.running = false;
+        timer.last_tick = None;
     }
 }
 

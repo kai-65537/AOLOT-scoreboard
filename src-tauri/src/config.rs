@@ -75,6 +75,9 @@ pub struct NumberKeybind {
 pub struct TimerKeybind {
     pub start: KeybindSpec,
     pub stop: KeybindSpec,
+    pub reset: Option<KeybindSpec>,
+    pub increase: Option<KeybindSpec>,
+    pub decrease: Option<KeybindSpec>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -243,6 +246,9 @@ fn load_config_from_str_with_base(content: &str, base_dir: &Path) -> Result<Scor
                     Some(TimerKeybind {
                         start: parse_keybind(id, binds, "start")?,
                         stop: parse_keybind(id, binds, "stop")?,
+                        reset: parse_optional_keybind(id, binds, "reset")?,
+                        increase: parse_optional_keybind(id, binds, "increase")?,
+                        decrease: parse_optional_keybind(id, binds, "decrease")?,
                     })
                 } else {
                     None
@@ -424,6 +430,20 @@ fn parse_keybind(
         return Err(format!("'{id}' keybind.{key}.key cannot be empty"));
     }
     Ok(spec.clone())
+}
+
+fn parse_optional_keybind(
+    id: &str,
+    binds: &BTreeMap<String, KeybindSpec>,
+    key: &str,
+) -> Result<Option<KeybindSpec>, String> {
+    let Some(spec) = binds.get(key) else {
+        return Ok(None);
+    };
+    if spec.key.trim().is_empty() {
+        return Err(format!("'{id}' keybind.{key}.key cannot be empty"));
+    }
+    Ok(Some(spec.clone()))
 }
 
 fn resolve_image_source(base_dir: &Path, source: &str) -> String {

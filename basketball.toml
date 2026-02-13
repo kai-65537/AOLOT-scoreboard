@@ -10,9 +10,9 @@ default = 0
 position.x = 555
 position.y = 55
 alignment = "center"
-keybind.increase.key = "Q"
-keybind.decrease.key = "W"
-keybind.reset.key = "E"
+keybind.increase.key = "A"
+keybind.decrease.key = "B"
+keybind.reset.key = "C"
 
 [guest-score]
 type = "number"
@@ -20,12 +20,18 @@ default = 0
 position.x = 555
 position.y = 132
 alignment = "center"
+keybind.increase.key = "D"
+keybind.decrease.key = "E"
+keybind.reset.key = "F"
 
 [period-number]
 type = "number"
 default = 1
 position.x = 425
 position.y = 180
+keybind.increase.key = "J"
+keybind.decrease.key = "K"
+keybind.reset.key = "N"
 
 [timer]
 type = "timer"
@@ -33,8 +39,11 @@ rounding = "basketball"
 default = "00:01:10"
 position.x = 100
 position.y = 180
-keybind.start.key = "Space"
-keybind.stop.key = "Z"
+keybind.start.key = "G"
+keybind.stop.key = "H"
+keybind.increase.key = "L"
+keybind.decrease.key = "M"
+keybind.reset.key = "I"
 
 [home-label]
 type = "label"
