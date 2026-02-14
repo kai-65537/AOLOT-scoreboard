@@ -56,7 +56,7 @@ Editable labels (`edit = true`) can be clicked while the app is running to open 
 
 ### Keybinding
 
-Keybindings are Windows-oriented and uses one required key plus optional modifier flags.
+Keybindings support keyboard shortcuts and Xbox-style gamepad buttons.
 
 Example:
 
@@ -69,6 +69,19 @@ keybind.increase.win = false
 ```
 
 Only `key` is required. Modifier flags default to `false`.
+
+Gamepad examples:
+
+```toml
+keybind.start.key = "gamepad:A"
+keybind.stop.key = "xbox:START"
+keybind.reset.key = "gamepad:DPAD_UP"
+```
+
+Supported gamepad button names are:
+`A`, `B`, `X`, `Y`, `LB`, `RB`, `LT`, `RT`, `BACK`, `START`, `GUIDE`, `L3`, `R3`, `DPAD_UP`, `DPAD_DOWN`, `DPAD_LEFT`, `DPAD_RIGHT`.
+
+For gamepad bindings, modifier flags (`ctrl`, `alt`, `shift`, `win`) are not allowed.
 
 ## Contributing
 

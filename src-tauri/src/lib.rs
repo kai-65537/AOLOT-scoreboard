@@ -3,6 +3,7 @@ mod state;
 
 use crate::config::{load_config_from_path, load_config_from_str};
 use crate::state::{Action, RuntimeState, UiSnapshot};
+use gilrs::{Button, EventType, Gilrs};
 use notify::{Event, EventKind, RecursiveMode, Watcher};
 use std::collections::HashMap;
 use std::path::Path;
@@ -25,6 +26,7 @@ const DEFAULT_CONFIG_NAME: &str = "basketball.toml";
 struct AppState {
     runtime: Arc<Mutex<RuntimeState>>,
     action_by_shortcut: Arc<Mutex<HashMap<String, Action>>>,
+    action_by_gamepad: Arc<Mutex<HashMap<String, Action>>>,
     hotkeys_paused: Arc<Mutex<bool>>,
     active_config_path: Arc<Mutex<Option<PathBuf>>>,
     config_watcher: Arc<Mutex<Option<notify::RecommendedWatcher>>>,
@@ -214,6 +216,7 @@ pub fn run() {
         .manage(AppState {
             runtime: Arc::new(Mutex::new(RuntimeState::new())),
             action_by_shortcut: Arc::new(Mutex::new(HashMap::new())),
+            action_by_gamepad: Arc::new(Mutex::new(HashMap::new())),
             hotkeys_paused: Arc::new(Mutex::new(false)),
             active_config_path: Arc::new(Mutex::new(None)),
             config_watcher: Arc::new(Mutex::new(None)),
@@ -232,6 +235,7 @@ pub fn run() {
         .setup(|app| {
             setup_menu(app)?;
             spawn_timer_thread(app.handle().clone());
+            spawn_gamepad_thread(app.handle().clone());
 
             let maybe_default_path = std::env::current_dir().ok().and_then(|dir| {
                 let local = dir.join(DEFAULT_CONFIG_NAME);
@@ -320,6 +324,43 @@ fn handle_shortcut(app: &AppHandle, shortcut: String) {
     }
 }
 
+fn handle_gamepad_button(app: &AppHandle, button: String) {
+    let Some(state) = app.try_state::<AppState>() else {
+        return;
+    };
+    let paused = match state.hotkeys_paused.lock() {
+        Ok(g) => *g,
+        Err(_) => return,
+    };
+    if paused {
+        return;
+    }
+
+    let action = {
+        let guard = match state.action_by_gamepad.lock() {
+            Ok(g) => g,
+            Err(_) => return,
+        };
+        guard.get(&button).cloned()
+    };
+
+    let Some(action) = action else {
+        return;
+    };
+
+    let changed = {
+        let mut runtime = match state.runtime.lock() {
+            Ok(g) => g,
+            Err(_) => return,
+        };
+        runtime.apply_action(&action)
+    };
+
+    if changed {
+        let _ = emit_snapshot(app, &state.runtime);
+    }
+}
+
 fn spawn_timer_thread(app: AppHandle) {
     thread::spawn(move || loop {
         // Keep updates frequent enough for tenths-of-a-second display modes.
@@ -341,6 +382,53 @@ fn spawn_timer_thread(app: AppHandle) {
     });
 }
 
+fn spawn_gamepad_thread(app: AppHandle) {
+    thread::spawn(move || {
+        let mut gilrs = match Gilrs::new() {
+            Ok(gilrs) => gilrs,
+            Err(e) => {
+                emit_error(&app, &format!("Gamepad input unavailable: {e}"));
+                return;
+            }
+        };
+
+        loop {
+            while let Some(event) = gilrs.next_event() {
+                if let EventType::ButtonPressed(button, _) = event.event {
+                    if let Some(button_key) = map_gamepad_button(button) {
+                        handle_gamepad_button(&app, button_key.to_string());
+                    }
+                }
+            }
+
+            thread::sleep(Duration::from_millis(8));
+        }
+    });
+}
+
+fn map_gamepad_button(button: Button) -> Option<&'static str> {
+    match button {
+        Button::South => Some("A"),
+        Button::East => Some("B"),
+        Button::West => Some("X"),
+        Button::North => Some("Y"),
+        Button::LeftTrigger => Some("LB"),
+        Button::RightTrigger => Some("RB"),
+        Button::LeftTrigger2 => Some("LT"),
+        Button::RightTrigger2 => Some("RT"),
+        Button::Select => Some("BACK"),
+        Button::Start => Some("START"),
+        Button::Mode => Some("GUIDE"),
+        Button::LeftThumb => Some("L3"),
+        Button::RightThumb => Some("R3"),
+        Button::DPadUp => Some("DPAD_UP"),
+        Button::DPadDown => Some("DPAD_DOWN"),
+        Button::DPadLeft => Some("DPAD_LEFT"),
+        Button::DPadRight => Some("DPAD_RIGHT"),
+        _ => None,
+    }
+}
+
 fn register_hotkeys(app: &AppHandle, state: &tauri::State<AppState>) -> Result<(), String> {
     unregister_hotkeys(app, state)?;
 
@@ -349,22 +437,35 @@ fn register_hotkeys(app: &AppHandle, state: &tauri::State<AppState>) -> Result<(
         runtime.collect_hotkeys()
     };
 
-    let mut action_map = HashMap::new();
+    let mut keyboard_action_map = HashMap::new();
+    let mut gamepad_action_map = HashMap::new();
     for binding in bindings {
+        if let Some(button) = binding.shortcut.strip_prefix("Gamepad:") {
+            gamepad_action_map.insert(button.to_string(), binding.action);
+            continue;
+        }
+
         let shortcut = Shortcut::from_str(&binding.shortcut)
             .map_err(|e| format!("Invalid shortcut '{}': {e}", binding.shortcut))?;
         let shortcut_key = shortcut.to_string();
         app.global_shortcut()
             .register(shortcut)
             .map_err(|e| format!("Failed to register '{}': {e}", binding.shortcut))?;
-        action_map.insert(shortcut_key, binding.action);
+        keyboard_action_map.insert(shortcut_key, binding.action);
     }
 
-    let mut map = state
+    let mut keyboard_map = state
         .action_by_shortcut
         .lock()
         .map_err(|_| "Shortcut map lock poisoned".to_string())?;
-    *map = action_map;
+    *keyboard_map = keyboard_action_map;
+
+    let mut gamepad_map = state
+        .action_by_gamepad
+        .lock()
+        .map_err(|_| "Gamepad map lock poisoned".to_string())?;
+    *gamepad_map = gamepad_action_map;
+
     Ok(())
 }
 
@@ -378,6 +479,13 @@ fn unregister_hotkeys(app: &AppHandle, state: &tauri::State<AppState>) -> Result
         .lock()
         .map_err(|_| "Shortcut map lock poisoned".to_string())?;
     map.clear();
+
+    let mut gamepad_map = state
+        .action_by_gamepad
+        .lock()
+        .map_err(|_| "Gamepad map lock poisoned".to_string())?;
+    gamepad_map.clear();
+
     Ok(())
 }
 

@@ -95,6 +95,10 @@ pub struct KeybindSpec {
 
 impl KeybindSpec {
     pub fn to_shortcut(&self) -> String {
+        if let Some(button) = normalize_gamepad_button(self.key.trim()) {
+            return format!("Gamepad:{button}");
+        }
+
         let mut parts: Vec<&str> = Vec::new();
         if self.ctrl {
             parts.push("Ctrl");
@@ -111,6 +115,59 @@ impl KeybindSpec {
         parts.push(self.key.trim());
         parts.join("+")
     }
+}
+
+fn normalize_gamepad_button(raw: &str) -> Option<&'static str> {
+    let normalized = raw.trim().to_ascii_uppercase();
+    let token = normalized
+        .strip_prefix("GAMEPAD:")
+        .or_else(|| normalized.strip_prefix("XBOX:"))?;
+    let clean = token.replace(['-', ' '], "_");
+    match clean.as_str() {
+        "A" | "SOUTH" => Some("A"),
+        "B" | "EAST" => Some("B"),
+        "X" | "WEST" => Some("X"),
+        "Y" | "NORTH" => Some("Y"),
+        "LB" | "LEFT_BUMPER" | "LEFT_SHOULDER" => Some("LB"),
+        "RB" | "RIGHT_BUMPER" | "RIGHT_SHOULDER" => Some("RB"),
+        "LT" | "LEFT_TRIGGER" => Some("LT"),
+        "RT" | "RIGHT_TRIGGER" => Some("RT"),
+        "BACK" | "SELECT" | "VIEW" => Some("BACK"),
+        "START" | "MENU" => Some("START"),
+        "GUIDE" | "XBOX" | "MODE" => Some("GUIDE"),
+        "L3" | "LEFT_STICK" | "LEFT_THUMB" => Some("L3"),
+        "R3" | "RIGHT_STICK" | "RIGHT_THUMB" => Some("R3"),
+        "DPAD_UP" => Some("DPAD_UP"),
+        "DPAD_DOWN" => Some("DPAD_DOWN"),
+        "DPAD_LEFT" => Some("DPAD_LEFT"),
+        "DPAD_RIGHT" => Some("DPAD_RIGHT"),
+        _ => None,
+    }
+}
+
+fn validate_keybind_spec(id: &str, key: &str, spec: &KeybindSpec) -> Result<(), String> {
+    let key_value = spec.key.trim();
+    if key_value.is_empty() {
+        return Err(format!("'{id}' keybind.{key}.key cannot be empty"));
+    }
+
+    let normalized = key_value.to_ascii_uppercase();
+    let looks_like_gamepad = normalized.starts_with("GAMEPAD:") || normalized.starts_with("XBOX:");
+    if looks_like_gamepad {
+        let Some(_) = normalize_gamepad_button(key_value) else {
+            return Err(format!(
+                "'{id}' keybind.{key}.key has unsupported gamepad button '{key_value}'"
+            ));
+        };
+
+        if spec.ctrl || spec.alt || spec.shift || spec.win {
+            return Err(format!(
+                "'{id}' keybind.{key} gamepad bindings do not support ctrl/alt/shift/win modifiers"
+            ));
+        }
+    }
+
+    Ok(())
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -426,9 +483,7 @@ fn parse_keybind(
     let spec = binds
         .get(key)
         .ok_or_else(|| format!("'{id}' keybind.{key} is required"))?;
-    if spec.key.trim().is_empty() {
-        return Err(format!("'{id}' keybind.{key}.key cannot be empty"));
-    }
+    validate_keybind_spec(id, key, spec)?;
     Ok(spec.clone())
 }
 
@@ -440,9 +495,7 @@ fn parse_optional_keybind(
     let Some(spec) = binds.get(key) else {
         return Ok(None);
     };
-    if spec.key.trim().is_empty() {
-        return Err(format!("'{id}' keybind.{key}.key cannot be empty"));
-    }
+    validate_keybind_spec(id, key, spec)?;
     Ok(Some(spec.clone()))
 }
 
