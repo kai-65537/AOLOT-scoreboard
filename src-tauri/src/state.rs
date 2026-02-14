@@ -141,41 +141,51 @@ impl RuntimeState {
                     keybind: Some(keybind),
                     ..
                 } => {
-                    bindings.push(HotkeyBinding {
-                        shortcut: keybind.increase.to_shortcut(),
-                        action: Action::NumberIncrease {
-                            id: component.id.clone(),
-                        },
-                    });
-                    bindings.push(HotkeyBinding {
-                        shortcut: keybind.decrease.to_shortcut(),
-                        action: Action::NumberDecrease {
-                            id: component.id.clone(),
-                        },
-                    });
-                    bindings.push(HotkeyBinding {
-                        shortcut: keybind.reset.to_shortcut(),
-                        action: Action::NumberReset {
-                            id: component.id.clone(),
-                        },
-                    });
+                    if let Some(increase) = &keybind.increase {
+                        bindings.push(HotkeyBinding {
+                            shortcut: increase.to_shortcut(),
+                            action: Action::NumberIncrease {
+                                id: component.id.clone(),
+                            },
+                        });
+                    }
+                    if let Some(decrease) = &keybind.decrease {
+                        bindings.push(HotkeyBinding {
+                            shortcut: decrease.to_shortcut(),
+                            action: Action::NumberDecrease {
+                                id: component.id.clone(),
+                            },
+                        });
+                    }
+                    if let Some(reset) = &keybind.reset {
+                        bindings.push(HotkeyBinding {
+                            shortcut: reset.to_shortcut(),
+                            action: Action::NumberReset {
+                                id: component.id.clone(),
+                            },
+                        });
+                    }
                 }
                 ComponentKind::Timer {
                     keybind: Some(keybind),
                     ..
                 } => {
-                    bindings.push(HotkeyBinding {
-                        shortcut: keybind.start.to_shortcut(),
-                        action: Action::TimerStart {
-                            id: component.id.clone(),
-                        },
-                    });
-                    bindings.push(HotkeyBinding {
-                        shortcut: keybind.stop.to_shortcut(),
-                        action: Action::TimerStop {
-                            id: component.id.clone(),
-                        },
-                    });
+                    if let Some(start) = &keybind.start {
+                        bindings.push(HotkeyBinding {
+                            shortcut: start.to_shortcut(),
+                            action: Action::TimerStart {
+                                id: component.id.clone(),
+                            },
+                        });
+                    }
+                    if let Some(stop) = &keybind.stop {
+                        bindings.push(HotkeyBinding {
+                            shortcut: stop.to_shortcut(),
+                            action: Action::TimerStop {
+                                id: component.id.clone(),
+                            },
+                        });
+                    }
                     if let Some(reset) = &keybind.reset {
                         bindings.push(HotkeyBinding {
                             shortcut: reset.to_shortcut(),

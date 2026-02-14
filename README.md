@@ -33,12 +33,12 @@ Each component is defined in TOML with a `type` and type-specific fields. Change
 
 Supported `type` values:
 
-- `number`: optional `keybind.increase`, `keybind.decrease`, `keybind.reset`
-- `timer`: `keybind.start`, `keybind.stop`; optional `keybind.increase`, `keybind.decrease`, `keybind.reset`; optional `default = "HH:MM:SS"`
+- `number`: optional `keybind.increase`, `keybind.decrease`, `keybind.reset` (any subset)
+- `timer`: optional `keybind.start`, `keybind.stop`, `keybind.increase`, `keybind.decrease`, `keybind.reset` (any subset); optional `default = "HH:MM:SS"`
 - `label`: optional `edit = true` for runtime text editing
 - `image`: `source`, `size.width`, `size.height`; optional `opacity`
 
-If `keybind` is omitted for `number` or `timer`, that component is read-only at runtime.
+If `keybind` is omitted (or contains no actions) for `number` or `timer`, that component is read-only at runtime.
 
 Timer rounding modes:
 

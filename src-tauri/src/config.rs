@@ -66,15 +66,15 @@ pub enum TimerRounding {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct NumberKeybind {
-    pub increase: KeybindSpec,
-    pub decrease: KeybindSpec,
-    pub reset: KeybindSpec,
+    pub increase: Option<KeybindSpec>,
+    pub decrease: Option<KeybindSpec>,
+    pub reset: Option<KeybindSpec>,
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct TimerKeybind {
-    pub start: KeybindSpec,
-    pub stop: KeybindSpec,
+    pub start: Option<KeybindSpec>,
+    pub stop: Option<KeybindSpec>,
     pub reset: Option<KeybindSpec>,
     pub increase: Option<KeybindSpec>,
     pub decrease: Option<KeybindSpec>,
@@ -276,9 +276,9 @@ fn load_config_from_str_with_base(content: &str, base_dir: &Path) -> Result<Scor
 
                 let keybind = if let Some(binds) = raw.keybind.as_ref() {
                     Some(NumberKeybind {
-                        increase: parse_keybind(id, binds, "increase")?,
-                        decrease: parse_keybind(id, binds, "decrease")?,
-                        reset: parse_keybind(id, binds, "reset")?,
+                        increase: parse_optional_keybind(id, binds, "increase")?,
+                        decrease: parse_optional_keybind(id, binds, "decrease")?,
+                        reset: parse_optional_keybind(id, binds, "reset")?,
                     })
                 } else {
                     None
@@ -301,8 +301,8 @@ fn load_config_from_str_with_base(content: &str, base_dir: &Path) -> Result<Scor
 
                 let keybind = if let Some(binds) = raw.keybind.as_ref() {
                     Some(TimerKeybind {
-                        start: parse_keybind(id, binds, "start")?,
-                        stop: parse_keybind(id, binds, "stop")?,
+                        start: parse_optional_keybind(id, binds, "start")?,
+                        stop: parse_optional_keybind(id, binds, "stop")?,
                         reset: parse_optional_keybind(id, binds, "reset")?,
                         increase: parse_optional_keybind(id, binds, "increase")?,
                         decrease: parse_optional_keybind(id, binds, "decrease")?,
@@ -473,18 +473,6 @@ fn resolve_font(base: &Font, override_font: Option<&FontOverride>) -> Result<Fon
         .unwrap_or_else(|| base.color.clone());
 
     Ok(Font { family, size, color })
-}
-
-fn parse_keybind(
-    id: &str,
-    binds: &BTreeMap<String, KeybindSpec>,
-    key: &str,
-) -> Result<KeybindSpec, String> {
-    let spec = binds
-        .get(key)
-        .ok_or_else(|| format!("'{id}' keybind.{key} is required"))?;
-    validate_keybind_spec(id, key, spec)?;
-    Ok(spec.clone())
 }
 
 fn parse_optional_keybind(
