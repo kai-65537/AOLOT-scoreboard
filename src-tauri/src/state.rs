@@ -13,6 +13,8 @@ pub enum Action {
     TimerReset { id: String },
     TimerIncrease { id: String },
     TimerDecrease { id: String },
+    ImageToggleForward { id: String },
+    ImageToggleBackward { id: String },
 }
 
 #[derive(Debug, Clone)]
@@ -51,6 +53,7 @@ pub struct RuntimeState {
     number_values: HashMap<String, i32>,
     timer_values: HashMap<String, TimerRuntime>,
     label_values: HashMap<String, String>,
+    image_toggle_indices: HashMap<String, usize>,
 }
 
 #[derive(Debug, Clone)]
@@ -67,6 +70,7 @@ impl RuntimeState {
             number_values: HashMap::new(),
             timer_values: HashMap::new(),
             label_values: HashMap::new(),
+            image_toggle_indices: HashMap::new(),
         }
     }
 
@@ -74,6 +78,7 @@ impl RuntimeState {
         self.number_values.clear();
         self.timer_values.clear();
         self.label_values.clear();
+        self.image_toggle_indices.clear();
 
         for component in &config.components {
             match &component.kind {
@@ -94,6 +99,9 @@ impl RuntimeState {
                     self.label_values.insert(component.id.clone(), default.clone());
                 }
                 ComponentKind::Image { .. } => {}
+                ComponentKind::ImageToggle { .. } => {
+                    self.image_toggle_indices.insert(component.id.clone(), 0);
+                }
             }
         }
 
@@ -211,8 +219,30 @@ impl RuntimeState {
                         });
                     }
                 }
+                ComponentKind::ImageToggle {
+                    keybind: Some(keybind),
+                    ..
+                } => {
+                    if let Some(forward) = &keybind.forward {
+                        bindings.push(HotkeyBinding {
+                            shortcut: forward.to_shortcut(),
+                            action: Action::ImageToggleForward {
+                                id: component.id.clone(),
+                            },
+                        });
+                    }
+                    if let Some(backward) = &keybind.backward {
+                        bindings.push(HotkeyBinding {
+                            shortcut: backward.to_shortcut(),
+                            action: Action::ImageToggleBackward {
+                                id: component.id.clone(),
+                            },
+                        });
+                    }
+                }
                 ComponentKind::Number { keybind: None, .. } => {}
                 ComponentKind::Timer { keybind: None, .. } => {}
+                ComponentKind::ImageToggle { keybind: None, .. } => {}
                 ComponentKind::Label { .. } => {}
                 ComponentKind::Image { .. } => {}
             }
@@ -323,6 +353,34 @@ impl RuntimeState {
                     return true;
                 }
             }
+            Action::ImageToggleForward { id } => {
+                if let Some(config) = &self.config {
+                    if let Some(source_count) = config.components.iter().find_map(|c| match &c.kind {
+                        ComponentKind::ImageToggle { sources, .. } if c.id == *id => Some(sources.len()),
+                        _ => None,
+                    }) {
+                        if source_count > 0 {
+                            let index = self.image_toggle_indices.entry(id.clone()).or_insert(0);
+                            *index = (*index + 1) % source_count;
+                            return true;
+                        }
+                    }
+                }
+            }
+            Action::ImageToggleBackward { id } => {
+                if let Some(config) = &self.config {
+                    if let Some(source_count) = config.components.iter().find_map(|c| match &c.kind {
+                        ComponentKind::ImageToggle { sources, .. } if c.id == *id => Some(sources.len()),
+                        _ => None,
+                    }) {
+                        if source_count > 0 {
+                            let index = self.image_toggle_indices.entry(id.clone()).or_insert(0);
+                            *index = (*index + source_count - 1) % source_count;
+                            return true;
+                        }
+                    }
+                }
+            }
         }
         false
     }
@@ -426,6 +484,29 @@ impl RuntimeState {
                         Some(*opacity),
                         false,
                     ),
+                    ComponentKind::ImageToggle {
+                        sources,
+                        width,
+                        height,
+                        opacity,
+                        ..
+                    } => {
+                        let index = self
+                            .image_toggle_indices
+                            .get(&component.id)
+                            .copied()
+                            .unwrap_or(0)
+                            % sources.len();
+                        (
+                            "image-toggle".to_string(),
+                            None,
+                            Some(sources[index].clone()),
+                            Some(*width),
+                            Some(*height),
+                            Some(*opacity),
+                            false,
+                        )
+                    }
                 };
 
                 UiComponent {

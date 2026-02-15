@@ -55,6 +55,13 @@ pub enum ComponentKind {
         height: i32,
         opacity: f32,
     },
+    ImageToggle {
+        sources: Vec<String>,
+        width: i32,
+        height: i32,
+        opacity: f32,
+        keybind: Option<ImageToggleKeybind>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -78,6 +85,12 @@ pub struct TimerKeybind {
     pub reset: Option<KeybindSpec>,
     pub increase: Option<KeybindSpec>,
     pub decrease: Option<KeybindSpec>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ImageToggleKeybind {
+    pub forward: Option<KeybindSpec>,
+    pub backward: Option<KeybindSpec>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -206,6 +219,7 @@ struct RawComponent {
     font: Option<FontOverride>,
     keybind: Option<BTreeMap<String, KeybindSpec>>,
     source: Option<String>,
+    sources: Option<Vec<String>>,
     size: Option<ImageSize>,
     opacity: Option<f32>,
     rounding: Option<String>,
@@ -359,6 +373,60 @@ fn load_config_from_str_with_base(content: &str, base_dir: &Path) -> Result<Scor
                     width: size.width,
                     height: size.height,
                     opacity,
+                }
+            }
+            "image-toggle" => {
+                if alignment.is_some() {
+                    return Err(format!("'{id}' alignment is only supported for number, timer, and label components"));
+                }
+                if raw.edit.is_some() {
+                    return Err(format!("'{id}' edit is only supported for label components"));
+                }
+                let sources = raw
+                    .sources
+                    .as_ref()
+                    .ok_or_else(|| format!("'{id}' image-toggle requires sources"))?;
+                if sources.is_empty() {
+                    return Err(format!("'{id}' image-toggle sources must contain at least one entry"));
+                }
+                let resolved_sources: Vec<String> = sources
+                    .iter()
+                    .map(|source| {
+                        if source.trim().is_empty() {
+                            Err(format!("'{id}' image-toggle sources entries cannot be empty"))
+                        } else {
+                            Ok(resolve_image_source(base_dir, source))
+                        }
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+
+                let size = raw
+                    .size
+                    .as_ref()
+                    .ok_or_else(|| format!("'{id}' image-toggle requires size.width and size.height"))?;
+                if size.width <= 0 || size.height <= 0 {
+                    return Err(format!("'{id}' image-toggle size must be > 0"));
+                }
+                let opacity = raw.opacity.unwrap_or(1.0);
+                if !(0.0..=1.0).contains(&opacity) {
+                    return Err(format!("'{id}' opacity must be between 0.0 and 1.0"));
+                }
+
+                let keybind = if let Some(binds) = raw.keybind.as_ref() {
+                    Some(ImageToggleKeybind {
+                        forward: parse_optional_keybind(id, binds, "forward")?,
+                        backward: parse_optional_keybind(id, binds, "backward")?,
+                    })
+                } else {
+                    None
+                };
+
+                ComponentKind::ImageToggle {
+                    sources: resolved_sources,
+                    width: size.width,
+                    height: size.height,
+                    opacity,
+                    keybind,
                 }
             }
             other => return Err(format!("'{id}' has unsupported type '{other}'")),

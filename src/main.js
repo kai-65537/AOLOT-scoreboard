@@ -76,7 +76,7 @@ function renderSnapshot(snapshot) {
   const components = snapshot?.components ?? [];
   for (const item of [...components].reverse()) {
     const node =
-      item.component_type === "image"
+      item.component_type === "image" || item.component_type === "image-toggle"
         ? document.createElement("img")
         : document.createElement("div");
 
@@ -91,7 +91,7 @@ function renderSnapshot(snapshot) {
         item.component_type === "label");
     node.style.transform = centered ? "translate(-50%, -50%)" : "";
 
-    if (item.component_type === "image") {
+    if (item.component_type === "image" || item.component_type === "image-toggle") {
       if (item.width) node.style.width = `${item.width}px`;
       if (item.height) node.style.height = `${item.height}px`;
       if (item.opacity != null) node.style.opacity = String(item.opacity);

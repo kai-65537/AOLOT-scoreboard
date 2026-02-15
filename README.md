@@ -37,8 +37,9 @@ Supported `type` values:
 - `timer`: optional `keybind.start`, `keybind.stop`, `keybind.increase`, `keybind.decrease`, `keybind.reset` (any subset); optional `default = "HH:MM:SS"`
 - `label`: optional `edit = true` for runtime text editing
 - `image`: `source`, `size.width`, `size.height`; optional `opacity`
+- `image-toggle`: `sources` (array of image paths), `size.width`, `size.height`; optional `opacity`; optional `keybind.forward`, `keybind.backward` (any subset)
 
-If `keybind` is omitted (or contains no actions) for `number` or `timer`, that component is read-only at runtime.
+If `keybind` is omitted (or contains no actions) for `number`, `timer`, or `image-toggle`, that component is read-only at runtime.
 
 Timer rounding modes:
 
