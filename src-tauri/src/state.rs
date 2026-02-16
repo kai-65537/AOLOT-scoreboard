@@ -53,6 +53,7 @@ pub struct RuntimeState {
     number_values: HashMap<String, i32>,
     timer_values: HashMap<String, TimerRuntime>,
     label_values: HashMap<String, String>,
+    image_values: HashMap<String, String>,
     image_toggle_indices: HashMap<String, usize>,
 }
 
@@ -70,6 +71,7 @@ impl RuntimeState {
             number_values: HashMap::new(),
             timer_values: HashMap::new(),
             label_values: HashMap::new(),
+            image_values: HashMap::new(),
             image_toggle_indices: HashMap::new(),
         }
     }
@@ -78,6 +80,7 @@ impl RuntimeState {
         self.number_values.clear();
         self.timer_values.clear();
         self.label_values.clear();
+        self.image_values.clear();
         self.image_toggle_indices.clear();
 
         for component in &config.components {
@@ -98,7 +101,10 @@ impl RuntimeState {
                 ComponentKind::Label { default, .. } => {
                     self.label_values.insert(component.id.clone(), default.clone());
                 }
-                ComponentKind::Image { .. } => {}
+                ComponentKind::Image { source, .. } => {
+                    self.image_values
+                        .insert(component.id.clone(), source.clone());
+                }
                 ComponentKind::ImageToggle { .. } => {
                     self.image_toggle_indices.insert(component.id.clone(), 0);
                 }
@@ -134,6 +140,37 @@ impl RuntimeState {
             return Ok(false);
         }
         self.label_values.insert(id.to_string(), value);
+        Ok(true)
+    }
+
+    pub fn set_image_source(&mut self, id: &str, source: String) -> Result<bool, String> {
+        let source_trimmed = source.trim();
+        if source_trimmed.is_empty() {
+            return Err("Image source path cannot be empty".to_string());
+        }
+
+        let Some(config) = &self.config else {
+            return Err("No config loaded".to_string());
+        };
+
+        let Some(component) = config.components.iter().find(|c| c.id == id) else {
+            return Err(format!("Unknown component '{id}'"));
+        };
+
+        let ComponentKind::Image { edit, .. } = &component.kind else {
+            return Err(format!("Component '{id}' is not an image"));
+        };
+
+        if !edit {
+            return Err(format!("Component '{id}' is not editable"));
+        }
+
+        let next_source = source_trimmed.to_string();
+        let current = self.image_values.get(id).cloned().unwrap_or_default();
+        if current == next_source {
+            return Ok(false);
+        }
+        self.image_values.insert(id.to_string(), next_source);
         Ok(true)
     }
 
@@ -471,18 +508,24 @@ impl RuntimeState {
                         *edit,
                     ),
                     ComponentKind::Image {
-                        source,
+                        source: default_source,
                         width,
                         height,
                         opacity,
+                        edit,
                     } => (
                         "image".to_string(),
                         None,
-                        Some(source.clone()),
+                        Some(
+                            self.image_values
+                                .get(&component.id)
+                                .cloned()
+                                .unwrap_or_else(|| default_source.clone()),
+                        ),
                         Some(*width),
                         Some(*height),
                         Some(*opacity),
-                        false,
+                        *edit,
                     ),
                     ComponentKind::ImageToggle {
                         sources,

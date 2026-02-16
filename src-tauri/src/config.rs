@@ -54,6 +54,7 @@ pub enum ComponentKind {
         width: i32,
         height: i32,
         opacity: f32,
+        edit: bool,
     },
     ImageToggle {
         sources: Vec<String>,
@@ -279,7 +280,7 @@ fn load_config_from_str_with_base(content: &str, base_dir: &Path) -> Result<Scor
         let kind = match component_type.as_str() {
             "number" => {
                 if raw.edit.is_some() {
-                    return Err(format!("'{id}' edit is only supported for label components"));
+                    return Err(format!("'{id}' edit is only supported for label and image components"));
                 }
                 let default = raw
                     .default
@@ -305,7 +306,7 @@ fn load_config_from_str_with_base(content: &str, base_dir: &Path) -> Result<Scor
             }
             "timer" => {
                 if raw.edit.is_some() {
-                    return Err(format!("'{id}' edit is only supported for label components"));
+                    return Err(format!("'{id}' edit is only supported for label and image components"));
                 }
                 let raw_default = raw
                     .default
@@ -348,9 +349,6 @@ fn load_config_from_str_with_base(content: &str, base_dir: &Path) -> Result<Scor
                 if alignment.is_some() {
                     return Err(format!("'{id}' alignment is only supported for number, timer, and label components"));
                 }
-                if raw.edit.is_some() {
-                    return Err(format!("'{id}' edit is only supported for label components"));
-                }
                 let source = raw
                     .source
                     .as_ref()
@@ -373,6 +371,7 @@ fn load_config_from_str_with_base(content: &str, base_dir: &Path) -> Result<Scor
                     width: size.width,
                     height: size.height,
                     opacity,
+                    edit: raw.edit.unwrap_or(false),
                 }
             }
             "image-toggle" => {
@@ -380,7 +379,7 @@ fn load_config_from_str_with_base(content: &str, base_dir: &Path) -> Result<Scor
                     return Err(format!("'{id}' alignment is only supported for number, timer, and label components"));
                 }
                 if raw.edit.is_some() {
-                    return Err(format!("'{id}' edit is only supported for label components"));
+                    return Err(format!("'{id}' edit is only supported for label and image components"));
                 }
                 let sources = raw
                     .sources

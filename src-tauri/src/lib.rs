@@ -69,6 +69,33 @@ fn update_label_text(
 }
 
 #[tauri::command]
+fn pick_image_source(
+    app: AppHandle,
+    state: tauri::State<AppState>,
+    id: String,
+) -> Result<bool, String> {
+    let selected = FileDialog::new()
+        .add_filter("Image files", &["png", "jpg", "jpeg", "gif", "webp", "bmp"])
+        .set_title("Select Image Source")
+        .pick_file();
+
+    let Some(path) = selected else {
+        return Ok(false);
+    };
+
+    let changed = {
+        let mut runtime = state.runtime.lock().map_err(|_| "Runtime lock poisoned".to_string())?;
+        runtime.set_image_source(&id, path.to_string_lossy().to_string())?
+    };
+
+    if changed {
+        emit_snapshot(&app, &state.runtime)?;
+    }
+
+    Ok(changed)
+}
+
+#[tauri::command]
 fn set_hotkeys_paused(
     app: AppHandle,
     state: tauri::State<AppState>,
@@ -273,6 +300,7 @@ pub fn run() {
             load_config_from_file,
             load_config_from_text,
             update_label_text,
+            pick_image_source,
             set_hotkeys_paused
         ])
         .run(tauri::generate_context!())
