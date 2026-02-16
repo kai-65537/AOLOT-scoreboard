@@ -39,11 +39,29 @@ body {
 
 .score-item-image {
   object-fit: contain;
+  z-index: 10;
+}
+
+.score-item-image-toggle {
+  object-fit: contain;
+  z-index: 10;
+}
+
+.score-item-image-hitarea {
+  z-index: 20;
+  background: transparent;
+  cursor: pointer;
 }
 
 .score-item-label {
+  z-index: 30;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.score-item-number,
+.score-item-timer {
+  z-index: 30;
 }
 
 #hotkey-toggle-hotspot {

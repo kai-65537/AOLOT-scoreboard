@@ -36,7 +36,7 @@ Supported `type` values:
 - `number`: optional `keybind.increase`, `keybind.decrease`, `keybind.reset` (any subset)
 - `timer`: optional `keybind.start`, `keybind.stop`, `keybind.increase`, `keybind.decrease`, `keybind.reset` (any subset); optional `default = "HH:MM:SS"`
 - `label`: optional `edit = true` for runtime text editing
-- `image`: `source`, `size.width`, `size.height`; optional `opacity`
+- `image`: `source`, `size.width`, `size.height`; optional `opacity`; optional `edit = true` for runtime source editing
 - `image-toggle`: `sources` (array of image paths), `size.width`, `size.height`; optional `opacity`; optional `keybind.forward`, `keybind.backward` (any subset)
 
 If `keybind` is omitted (or contains no actions) for `number`, `timer`, or `image-toggle`, that component is read-only at runtime.
@@ -54,6 +54,8 @@ type.rounding = "basketball"
 ```
 
 Editable labels (`edit = true`) can be clicked while the app is running to open an input dialog and update label text in memory only (the config file is not modified). While this dialog is open, global scoreboard hotkeys are paused and restored when it closes.
+
+Editable images (`edit = true`) can be clicked while the app is running to open a file browser and swap the image source in memory only (the config file is not modified). While the file browser is open, global scoreboard hotkeys are paused and restored when it closes.
 
 ### Keybinding
 

@@ -12,6 +12,7 @@ const editTitle = document.querySelector("#label-edit-title");
 const editCancel = document.querySelector("#label-edit-cancel");
 
 let editingLabelId = null;
+let editingImageId = null;
 let manualHotkeysPaused = false;
 let appliedHotkeysPaused = false;
 let isWindowActive = document.hasFocus();
@@ -23,7 +24,7 @@ async function setHotkeysPaused(paused) {
 }
 
 function shouldPauseHotkeys() {
-  return manualHotkeysPaused || editingLabelId !== null;
+  return manualHotkeysPaused || editingLabelId !== null || editingImageId !== null;
 }
 
 function updateHotkeyToggleUi() {
@@ -69,11 +70,37 @@ async function openLabelEditor(item) {
   editInput.select();
 }
 
+async function openImageEditor(item) {
+  const previousEditingImageId = editingImageId;
+  editingImageId = item.id;
+
+  try {
+    await syncHotkeyPauseState();
+    hideError();
+  } catch (error) {
+    editingImageId = previousEditingImageId;
+    await syncHotkeyPauseState().catch(() => {});
+    showError(String(error));
+    return;
+  }
+
+  try {
+    await invoke("pick_image_source", { id: item.id });
+    hideError();
+  } catch (error) {
+    showError(String(error));
+  } finally {
+    editingImageId = previousEditingImageId;
+    await syncHotkeyPauseState().catch(() => {});
+  }
+}
+
 function renderSnapshot(snapshot) {
   root.innerHTML = "";
   root.style.backgroundColor = snapshot?.background_color ?? "#000000";
 
   const components = snapshot?.components ?? [];
+  const editableImageHitAreas = [];
   for (const item of [...components].reverse()) {
     const node =
       item.component_type === "image" || item.component_type === "image-toggle"
@@ -100,6 +127,10 @@ function renderSnapshot(snapshot) {
       const convertFileSrc = window.__TAURI__.core?.convertFileSrc;
       node.src = typeof convertFileSrc === "function" ? convertFileSrc(srcValue) : srcValue;
       node.alt = item.id;
+
+      if (item.component_type === "image" && item.editable) {
+        editableImageHitAreas.push(item);
+      }
     } else {
       node.style.fontFamily = item.font_family;
       node.style.fontSize = `${item.font_size}px`;
@@ -116,6 +147,22 @@ function renderSnapshot(snapshot) {
     }
 
     root.appendChild(node);
+  }
+
+  for (const item of editableImageHitAreas) {
+    const hitArea = document.createElement("div");
+    hitArea.className = "score-item score-item-image-hitarea";
+    hitArea.dataset.componentId = item.id;
+    hitArea.style.left = `${item.x}px`;
+    hitArea.style.top = `${item.y}px`;
+    if (item.width) hitArea.style.width = `${item.width}px`;
+    if (item.height) hitArea.style.height = `${item.height}px`;
+    hitArea.title = `Click to edit ${item.id}`;
+    hitArea.setAttribute("aria-label", `Edit image ${item.id}`);
+    hitArea.addEventListener("click", () => {
+      void openImageEditor(item);
+    });
+    root.appendChild(hitArea);
   }
 }
 
